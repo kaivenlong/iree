@@ -87,11 +87,6 @@ struct CommandBufferType
   using Base::Base;
 };
 
-struct DescriptorSetType
-    : public Type::TypeBase<DescriptorSetType, Type, TypeStorage> {
-  using Base::Base;
-};
-
 struct DescriptorSetLayoutType
     : public Type::TypeBase<DescriptorSetLayoutType, Type, TypeStorage> {
   using Base::Base;
@@ -110,8 +105,8 @@ struct ExecutableType
   using Base::Base;
 };
 
-struct ExecutableLayoutType
-    : public Type::TypeBase<ExecutableLayoutType, Type, TypeStorage> {
+struct PipelineLayoutType
+    : public Type::TypeBase<PipelineLayoutType, Type, TypeStorage> {
   using Base::Base;
 };
 
@@ -155,13 +150,34 @@ struct FieldParser<mlir::iree_compiler::IREE::HAL::DescriptorType> {
     if (parser.parseKeywordOrString(&value)) return failure();
     auto result = mlir::iree_compiler::IREE::HAL::symbolizeEnum<
         mlir::iree_compiler::IREE::HAL::DescriptorType>(value);
-    if (!result.hasValue()) return failure();
-    return result.getValue();
+    if (!result.has_value()) return failure();
+    return result.value();
   }
 };
 static inline AsmPrinter &operator<<(
     AsmPrinter &printer, mlir::iree_compiler::IREE::HAL::DescriptorType param) {
   printer << mlir::iree_compiler::IREE::HAL::stringifyEnum(param);
+  return printer;
+}
+template <>
+struct FieldParser<
+    mlir::Optional<mlir::iree_compiler::IREE::HAL::DescriptorFlags>> {
+  static FailureOr<mlir::iree_compiler::IREE::HAL::DescriptorFlags> parse(
+      AsmParser &parser) {
+    std::string value;
+    if (parser.parseKeywordOrString(&value)) return failure();
+    auto result = mlir::iree_compiler::IREE::HAL::symbolizeEnum<
+        mlir::iree_compiler::IREE::HAL::DescriptorFlags>(value);
+    if (!result.has_value()) return failure();
+    return result.value();
+  }
+};
+static inline AsmPrinter &operator<<(
+    AsmPrinter &printer,
+    mlir::Optional<mlir::iree_compiler::IREE::HAL::DescriptorFlags> param) {
+  printer << (param.has_value()
+                  ? mlir::iree_compiler::IREE::HAL::stringifyEnum(param.value())
+                  : StringRef{""});
   return printer;
 }
 }  // namespace mlir

@@ -16,9 +16,8 @@
 #include "iree/base/tracing.h"
 #include "iree/hal/local/executable_environment.h"
 #include "iree/hal/local/executable_library.h"
-#include "iree/hal/local/local_descriptor_set_layout.h"
 #include "iree/hal/local/local_executable.h"
-#include "iree/hal/local/local_executable_layout.h"
+#include "iree/hal/local/local_pipeline_layout.h"
 
 //===----------------------------------------------------------------------===//
 // iree_hal_inline_command_buffer_t
@@ -87,13 +86,18 @@ static void iree_hal_inline_command_buffer_reset(
       command_buffer->state.packed_binding_lengths;
 }
 
-iree_status_t iree_hal_inline_command_buffer_create(
+iree_host_size_t iree_hal_inline_command_buffer_size(void) {
+  return sizeof(iree_hal_inline_command_buffer_t);
+}
+
+iree_status_t iree_hal_inline_command_buffer_initialize(
     iree_hal_device_t* device, iree_hal_command_buffer_mode_t mode,
     iree_hal_command_category_t command_categories,
     iree_hal_queue_affinity_t queue_affinity, iree_allocator_t host_allocator,
-    iree_hal_command_buffer_t** out_command_buffer) {
+    iree_byte_span_t storage, iree_hal_command_buffer_t** out_command_buffer) {
   IREE_ASSERT_ARGUMENT(out_command_buffer);
   *out_command_buffer = NULL;
+
   if (!iree_all_bits_set(
           mode, IREE_HAL_COMMAND_BUFFER_MODE_ONE_SHOT |
                     IREE_HAL_COMMAND_BUFFER_MODE_ALLOW_INLINE_EXECUTION)) {
@@ -104,22 +108,62 @@ iree_status_t iree_hal_inline_command_buffer_create(
         IREE_STATUS_INVALID_ARGUMENT,
         "inline command buffers must have a mode with ALLOW_INLINE_EXECUTION");
   }
+  if (storage.data_length < iree_hal_inline_command_buffer_size()) {
+    return iree_make_status(IREE_STATUS_INVALID_ARGUMENT,
+                            "storage must have at least the capacity as "
+                            "defined by iree_hal_inline_command_buffer_size");
+  }
 
   IREE_TRACE_ZONE_BEGIN(z0);
 
-  iree_hal_inline_command_buffer_t* command_buffer = NULL;
-  iree_status_t status = iree_allocator_malloc(
-      host_allocator, sizeof(*command_buffer), (void**)&command_buffer);
-  if (iree_status_is_ok(status)) {
-    iree_hal_command_buffer_initialize(
-        device, mode, command_categories, queue_affinity,
-        &iree_hal_inline_command_buffer_vtable, &command_buffer->base);
-    command_buffer->host_allocator = host_allocator;
-    iree_hal_inline_command_buffer_reset(command_buffer);
+  iree_hal_inline_command_buffer_t* command_buffer =
+      (iree_hal_inline_command_buffer_t*)storage.data;
+  memset(command_buffer, 0, sizeof(*command_buffer));
 
-    *out_command_buffer = &command_buffer->base;
+  iree_hal_command_buffer_initialize(
+      device, mode, command_categories, queue_affinity,
+      &iree_hal_inline_command_buffer_vtable, &command_buffer->base);
+  command_buffer->host_allocator = host_allocator;
+  iree_hal_inline_command_buffer_reset(command_buffer);
+
+  *out_command_buffer = &command_buffer->base;
+
+  IREE_TRACE_ZONE_END(z0);
+  return iree_ok_status();
+}
+
+void iree_hal_inline_command_buffer_deinitialize(
+    iree_hal_command_buffer_t* base_command_buffer) {
+  iree_hal_inline_command_buffer_t* command_buffer =
+      iree_hal_inline_command_buffer_cast(base_command_buffer);
+  iree_hal_inline_command_buffer_reset(command_buffer);
+}
+
+iree_status_t iree_hal_inline_command_buffer_create(
+    iree_hal_device_t* device, iree_hal_command_buffer_mode_t mode,
+    iree_hal_command_category_t command_categories,
+    iree_hal_queue_affinity_t queue_affinity, iree_allocator_t host_allocator,
+    iree_hal_command_buffer_t** out_command_buffer) {
+  IREE_ASSERT_ARGUMENT(out_command_buffer);
+  *out_command_buffer = NULL;
+  IREE_TRACE_ZONE_BEGIN(z0);
+
+  uint8_t* storage = NULL;
+  iree_status_t status = iree_allocator_malloc(
+      host_allocator, iree_hal_inline_command_buffer_size(), (void**)&storage);
+  iree_hal_command_buffer_t* command_buffer = NULL;
+  if (iree_status_is_ok(status)) {
+    status = iree_hal_inline_command_buffer_initialize(
+        device, mode, command_categories, queue_affinity, host_allocator,
+        iree_make_byte_span(storage, iree_hal_inline_command_buffer_size()),
+        &command_buffer);
   }
 
+  if (iree_status_is_ok(status)) {
+    *out_command_buffer = command_buffer;
+  } else {
+    iree_allocator_free(host_allocator, storage);
+  }
   IREE_TRACE_ZONE_END(z0);
   return status;
 }
@@ -131,7 +175,7 @@ static void iree_hal_inline_command_buffer_destroy(
   iree_allocator_t host_allocator = command_buffer->host_allocator;
   IREE_TRACE_ZONE_BEGIN(z0);
 
-  iree_hal_inline_command_buffer_reset(command_buffer);
+  iree_hal_inline_command_buffer_deinitialize(base_command_buffer);
   iree_allocator_free(host_allocator, command_buffer);
 
   IREE_TRACE_ZONE_END(z0);
@@ -155,9 +199,6 @@ static void* iree_hal_inline_command_buffer_dyn_cast(
 //===----------------------------------------------------------------------===//
 // iree_hal_inline_command_buffer_t recording
 //===----------------------------------------------------------------------===//
-
-static iree_status_t iree_hal_inline_command_buffer_flush_tasks(
-    iree_hal_inline_command_buffer_t* command_buffer);
 
 // Updates the cached processor ID field in the command buffer.
 static void iree_hal_inline_command_buffer_update_processor_id(
@@ -315,7 +356,7 @@ static iree_status_t iree_hal_inline_command_buffer_copy_buffer(
 
 static iree_status_t iree_hal_inline_command_buffer_push_constants(
     iree_hal_command_buffer_t* base_command_buffer,
-    iree_hal_executable_layout_t* executable_layout, iree_host_size_t offset,
+    iree_hal_pipeline_layout_t* pipeline_layout, iree_host_size_t offset,
     const void* values, iree_host_size_t values_length) {
   iree_hal_inline_command_buffer_t* command_buffer =
       iree_hal_inline_command_buffer_cast(base_command_buffer);
@@ -340,7 +381,7 @@ static iree_status_t iree_hal_inline_command_buffer_push_constants(
 
 static iree_status_t iree_hal_inline_command_buffer_push_descriptor_set(
     iree_hal_command_buffer_t* base_command_buffer,
-    iree_hal_executable_layout_t* executable_layout, uint32_t set,
+    iree_hal_pipeline_layout_t* pipeline_layout, uint32_t set,
     iree_host_size_t binding_count,
     const iree_hal_descriptor_set_binding_t* bindings) {
   iree_hal_inline_command_buffer_t* command_buffer =
@@ -377,21 +418,6 @@ static iree_status_t iree_hal_inline_command_buffer_push_descriptor_set(
 }
 
 //===----------------------------------------------------------------------===//
-// iree_hal_command_buffer_bind_descriptor_set
-//===----------------------------------------------------------------------===//
-// NOTE: command buffer state change only; enqueues no tasks.
-
-static iree_status_t iree_hal_inline_command_buffer_bind_descriptor_set(
-    iree_hal_command_buffer_t* base_command_buffer,
-    iree_hal_executable_layout_t* executable_layout, uint32_t set,
-    iree_hal_descriptor_set_t* descriptor_set,
-    iree_host_size_t dynamic_offset_count,
-    const iree_device_size_t* dynamic_offsets) {
-  return iree_make_status(IREE_STATUS_UNIMPLEMENTED,
-                          "descriptor set binding not yet implemented");
-}
-
-//===----------------------------------------------------------------------===//
 // iree_hal_command_buffer_dispatch
 //===----------------------------------------------------------------------===//
 
@@ -404,15 +430,15 @@ static iree_status_t iree_hal_inline_command_buffer_dispatch(
 
   iree_hal_local_executable_t* local_executable =
       iree_hal_local_executable_cast(executable);
-  if (IREE_UNLIKELY(!local_executable->executable_layouts)) {
+  if (IREE_UNLIKELY(!local_executable->pipeline_layouts)) {
     return iree_make_status(
         IREE_STATUS_FAILED_PRECONDITION,
         "layouts not provided during executable creation; cannot dispatch");
   }
 
-  iree_hal_local_executable_layout_t* local_layout =
-      (iree_hal_local_executable_layout_t*)
-          local_executable->executable_layouts[entry_point];
+  iree_hal_local_pipeline_layout_t* local_layout =
+      (iree_hal_local_pipeline_layout_t*)
+          local_executable->pipeline_layouts[entry_point];
   iree_host_size_t local_memory_size =
       local_executable->dispatch_attrs
           ? local_executable->dispatch_attrs[entry_point].local_memory_pages *
@@ -553,8 +579,6 @@ static const iree_hal_command_buffer_vtable_t
         .push_constants = iree_hal_inline_command_buffer_push_constants,
         .push_descriptor_set =
             iree_hal_inline_command_buffer_push_descriptor_set,
-        .bind_descriptor_set =
-            iree_hal_inline_command_buffer_bind_descriptor_set,
         .dispatch = iree_hal_inline_command_buffer_dispatch,
         .dispatch_indirect = iree_hal_inline_command_buffer_dispatch_indirect,
 };
