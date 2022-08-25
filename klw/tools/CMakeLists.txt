@@ -4,7 +4,7 @@
     SRCS
       "klw-compile-main.cc"
     DEPS
-      klw::compiler::Tools::klw_compile_lib
+      iree::klw::compiler::Tools::klw_compile_lib
     DATA
       ${IREE_LLD_TARGET}
     HOSTONLY

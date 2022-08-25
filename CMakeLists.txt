@@ -773,8 +773,7 @@ add_subdirectory(runtime)
 add_subdirectory(tools)
 
 if(IREE_BUILD_KLW)
-  add_subdirectory(klw/compiler)
-  add_subdirectory(klw/tools)
+  include(klw/klw.cmake)
 endif()
 
 if(IREE_ENABLE_CLANG_TIDY)

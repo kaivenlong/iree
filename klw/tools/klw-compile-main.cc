@@ -7,5 +7,5 @@
 #include "klw/compiler/Tools/klw_compile_lib.h"
 
 int main(int argc, char **argv) {
-  return mlir::klw_compiler::runKlwCMain(argc, argv);
+  return mlir::klw_compiler::runKlwcMain(argc, argv);
 }

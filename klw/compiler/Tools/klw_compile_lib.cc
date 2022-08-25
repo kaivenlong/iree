@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "iree/compiler/Tools/iree_compile_lib.h"
+#include "klw/compiler/Tools/klw_compile_lib.h"
 
 #include <functional>
 #include <memory>

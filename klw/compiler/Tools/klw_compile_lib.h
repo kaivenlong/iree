@@ -4,15 +4,15 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifndef IREE_COMPILER_TOOLS_IREE_COMPILE_LIB_H
-#define IREE_COMPILER_TOOLS_IREE_COMPILE_LIB_H
+#ifndef KLW_COMPILER_TOOLS_KLW_COMPILE_LIB_H
+#define KLW_COMPILER_TOOLS_KLW_COMPILE_LIB_H
 
 namespace mlir {
-namespace iree_compiler {
+namespace klw_compiler {
 
-int runIreecMain(int argc, char **argv);
+int runKlwcMain(int argc, char **argv);
 
-}  // namespace iree_compiler
+}  // namespace klw_compiler
 }  // namespace mlir
 
-#endif  // IREE_COMPILER_TOOLS_IREE_COMPILE_LIB_H
+#endif  // KLW_COMPILER_TOOLS_KLW_COMPILE_LIB_H
