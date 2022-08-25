@@ -204,15 +204,15 @@ iree_cc_library(
 
 iree_cc_library(
   NAME
-    iree_compile_lib
+    klw_compile_lib
   HDRS
-    "iree_compile_lib.h"
+    "klw_compile_lib.h"
   SRCS
-    "iree_compile_lib.cc"
+    "klw_compile_lib.cc"
   DEPS
-    ::init_llvmir_translations
-    ::init_passes_and_dialects
-    ::init_targets
+    iree::compiler::Tools::init_llvmir_translations
+    iree::compiler::Tools::init_passes_and_dialects
+    iree::compiler::Tools::init_targets
     LLVMSupport
     MLIRIR
     MLIRSCFTransforms

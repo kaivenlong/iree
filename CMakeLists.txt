@@ -53,7 +53,7 @@ option(IREE_ENABLE_CLANG_TIDY "Builds IREE in with clang tidy enabled on IREE's 
 # TODO(#8469): remove the dependency on cpuinfo entirely.
 option(IREE_ENABLE_CPUINFO "Enables runtime use of cpuinfo for processor topology detection." ON)
 
-option(IREE_BUILD_MLIREXT "Builds the MLIR Extension Projects based on the mlir core and iree." OFF)
+option(IREE_BUILD_KLW "Builds the MLIR Extension Projects based on the mlir core and iree." OFF)
 option(IREE_BUILD_COMPILER "Builds the IREE compiler." ON)
 option(IREE_BUILD_TESTS "Builds IREE unit tests." ON)
 option(IREE_BUILD_DOCS "Builds IREE docs." OFF)
@@ -772,8 +772,9 @@ add_subdirectory(runtime)
 # tools/ can depend on compiler/ and runtime/
 add_subdirectory(tools)
 
-if(IREE_BUILD_MLIREXT)
-  add_subdirectory(mlirext/compiler)
+if(IREE_BUILD_KLW)
+  add_subdirectory(klw/compiler)
+  add_subdirectory(klw/tools)
 endif()
 
 if(IREE_ENABLE_CLANG_TIDY)
