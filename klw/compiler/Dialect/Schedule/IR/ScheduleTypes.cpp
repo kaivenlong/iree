@@ -105,7 +105,7 @@ Attribute ResourceConfigAttr::parse(AsmParser &p, Type type) {
 }
 
 void ResourceConfigAttr::print(AsmPrinter &p) const {
-  auto &os = p.getSchedule();
+  auto &os = p.getStream();
   os << "<{";
   os << "max_allocation_size = " << getMaxAllocationSize() << ", ";
   os << "min_buffer_offset_alignment = " << getMinBufferOffsetAlignment()
@@ -323,7 +323,7 @@ Type ResourceType::parse(AsmParser &p) {
 
 void ResourceType::print(AsmPrinter &p) const {
   p << "<";
-  printLifetime(getLifetime(), p.getSchedule());
+  printLifetime(getLifetime(), p.getStream());
   p << ">";
 }
 
