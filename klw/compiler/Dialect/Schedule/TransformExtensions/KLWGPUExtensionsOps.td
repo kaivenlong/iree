@@ -31,7 +31,7 @@ def ReplaceOpWithCustomScheduleOp :
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
-        ::mlir::scf::IfOp target,
+        ::mlir::Operation *target,
         ::llvm::SmallVectorImpl<::mlir::Operation *> &results, 
         ::mlir::transform::TransformState &state);
   }];
