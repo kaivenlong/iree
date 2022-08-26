@@ -47,7 +47,7 @@
 #endif  // IREE_HAVE_C_OUTPUT_FORMAT
 
 namespace mlir {
-namespace iree_compiler {
+namespace klw_compiler {
 
 namespace {
 
@@ -84,7 +84,7 @@ IREEVMPipelineHooks &getHooks() {
 }  // namespace iree_compiler
 }  // namespace mlir
 
-int mlir::iree_compiler::runIreecMain(int argc, char **argv) {
+int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
   llvm::InitLLVM y(argc, argv);
   static llvm::cl::OptionCategory mainOptions("IREE Main Options");
 
