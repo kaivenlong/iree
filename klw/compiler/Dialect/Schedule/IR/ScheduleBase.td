@@ -21,7 +21,7 @@ include "mlir/IR/SubElementInterfaces.td"
 //===----------------------------------------------------------------------===//
 
 def Schedule_Dialect : Dialect {
-  let name = "stream";
+  let name = "schedule";
   let cppNamespace = "::mlir::klw_compiler::KLW::Schedule";
   let emitAccessorPrefix = kEmitAccessorPrefix_Prefixed;
 
