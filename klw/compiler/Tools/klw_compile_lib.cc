@@ -119,10 +119,10 @@ int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
   auto &highLevelOptimizationOptions =
       HighLevelOptimizationOptions::FromFlags::get();
   auto &schedulingOptions = SchedulingOptions::FromFlags::get();
-  auto &halTargetOptions = IREE::HAL::TargetOptions::FromFlags::get();
-  auto &vmTargetOptions = IREE::VM::TargetOptions::FromFlags::get();
+  auto &halTargetOptions = mlir::iree_compiler::IREE::HAL::TargetOptions::FromFlags::get();
+  auto &vmTargetOptions = mlir::iree_compiler::IREE::VM::TargetOptions::FromFlags::get();
   auto &bytecodeTargetOptions =
-      IREE::VM::BytecodeTargetOptions::FromFlags::get();
+      mlir::iree_compiler::IREE::VM::BytecodeTargetOptions::FromFlags::get();
 
   // General command line flags.
   llvm::cl::opt<std::string> inputFilename(
@@ -176,7 +176,7 @@ int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
 
 // Optional output formats.
 #ifdef IREE_HAVE_C_OUTPUT_FORMAT
-  auto cTargetOptions = IREE::VM::getCTargetOptionsFromFlags();
+  auto cTargetOptions = mlir::iree_compiler::IREE::VM::getCTargetOptionsFromFlags();
 #endif
 
   llvm::cl::ParseCommandLineOptions(argc, argv, "IREE compilation driver\n");
@@ -253,9 +253,9 @@ int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
         // Override the output format.
         outputFormat = OutputFormat::hal_executable;
         auto executableOps =
-            llvm::to_vector<4>(module->getOps<IREE::HAL::ExecutableOp>());
+            llvm::to_vector<4>(module->getOps<mlir::iree_compiler::IREE::HAL::ExecutableOp>());
         auto sourceOps =
-            llvm::to_vector<4>(module->getOps<IREE::HAL::ExecutableSourceOp>());
+            llvm::to_vector<4>(module->getOps<mlir::iree_compiler::IREE::HAL::ExecutableSourceOp>());
         size_t usableOpCount = executableOps.size() + sourceOps.size();
         if (usableOpCount != 1) {
           return module->emitError()
@@ -263,8 +263,8 @@ int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
                     "exactly 1 top level hal.executable/hal.executable.source "
                     "op";
         }
-        auto executableOptions = IREE::HAL::TargetOptions::FromFlags::get();
-        IREE::HAL::buildHALTransformPassPipeline(passManager,
+        auto executableOptions = mlir::iree_compiler::IREE::HAL::TargetOptions::FromFlags::get();
+        mlir::iree_compiler::IREE::HAL::buildHALTransformPassPipeline(passManager,
                                                  executableOptions);
         break;
       }
@@ -294,9 +294,9 @@ int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
       case OutputFormat::hal_executable: {
         // Extract the serialized binary representation from the executable.
         auto executableOp =
-            *(module->getOps<IREE::HAL::ExecutableOp>().begin());
+            *(module->getOps<mlir::iree_compiler::IREE::HAL::ExecutableOp>().begin());
         auto binaryOps = llvm::to_vector<4>(
-            executableOp.getOps<IREE::HAL::ExecutableBinaryOp>());
+            executableOp.getOps<mlir::iree_compiler::IREE::HAL::ExecutableBinaryOp>());
         if (binaryOps.size() != 1) {
           return executableOp.emitError() << "executable translation failed to "
                                              "produce exactly 1 binary for "
