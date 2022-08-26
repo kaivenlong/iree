@@ -13,5 +13,5 @@ build(){
     $1 -o $tag.cuda.vmfb &> $tag.build.log
 }
 
-build linalg_transform.mlir transform_dialect_codegen_spec.mlir
+build linalg_transform.mlir codegen_spec.mlir
  

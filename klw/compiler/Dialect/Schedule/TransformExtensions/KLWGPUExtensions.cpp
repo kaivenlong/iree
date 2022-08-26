@@ -56,6 +56,7 @@ DiagnosedSilenceableFailure
 transform_dialect::ReplaceOpWithCustomScheduleOp::applyToOne(
     Operation *target, SmallVectorImpl<Operation *> &results,
     transform::TransformState &state) {
+  dbgs_v() << "ReplaceOpWithCustomScheduleOp: target is \n" << *target << "\n";
   return DiagnosedSilenceableFailure(success());
 }
 
