@@ -1,6 +1,8 @@
 bindir=../../../../iree_build/klw/tools
-
+workdir=work
+mkdir -p $workdir
 build(){
+  tag=$workdir/$1
   $bindir/klw-compile \
     --mlir-disable-threading \
     --mlir-print-ir-before-all \
@@ -8,7 +10,7 @@ build(){
     --iree-hal-target-backends=cuda \
     --iree-hal-cuda-llvm-target-arch=sm_80 \
     --iree-codegen-llvmgpu-use-transform-dialect=$2 \
-    $1 -o $1.cuda.vmfb &> $1.build.log
+    $1 -o $tag.cuda.vmfb &> $tag.build.log
 }
 
 build linalg_transform.mlir transform_dialect_codegen_spec.mlir
