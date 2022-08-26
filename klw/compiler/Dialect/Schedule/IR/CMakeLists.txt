@@ -50,7 +50,7 @@ iree_cc_library(
     MLIRSupport
     MLIRTensorDialect
     MLIRTransformUtils
-    iree::compiler::Dialect::Schedule::Builtins
+    iree::klw::compiler::Dialect::Schedule::Builtins
     iree::compiler::Dialect::Util::IR
     iree::compiler::Utils
   PUBLIC
@@ -94,10 +94,10 @@ iree_tablegen_library(
   TD_FILE
     "ScheduleBase.td"
   OUTS
-    --gen-attrdef-decls --attrdefs-dialect=stream ScheduleAttrs.h.inc
-    --gen-attrdef-defs --attrdefs-dialect=stream ScheduleAttrs.cpp.inc
-    --gen-typedef-decls --typedefs-dialect=stream ScheduleTypes.h.inc
-    --gen-typedef-defs --typedefs-dialect=stream ScheduleTypes.cpp.inc
+    --gen-attrdef-decls --attrdefs-dialect=schedule ScheduleAttrs.h.inc
+    --gen-attrdef-defs --attrdefs-dialect=schedule ScheduleAttrs.cpp.inc
+    --gen-typedef-decls --typedefs-dialect=schedule ScheduleTypes.h.inc
+    --gen-typedef-defs --typedefs-dialect=schedule ScheduleTypes.cpp.inc
 )
 
 iree_tablegen_doc(
@@ -106,7 +106,7 @@ iree_tablegen_doc(
   TD_FILE
     "ScheduleOps.td"
   OUTS
-    --gen-dialect-doc --dialect=stream ScheduleDialect.md
+    --gen-dialect-doc --dialect=schedule ScheduleDialect.md
 )
 
 ### BAZEL_TO_CMAKE_PRESERVES_ALL_CONTENT_BELOW_THIS_LINE ###

@@ -773,6 +773,7 @@ add_subdirectory(runtime)
 add_subdirectory(tools)
 
 if(IREE_BUILD_KLW)
+  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
   include(klw/klw.cmake)
 endif()
 
