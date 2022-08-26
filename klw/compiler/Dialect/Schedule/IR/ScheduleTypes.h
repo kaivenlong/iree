@@ -8,7 +8,7 @@
 #define KLW_COMPILER_DIALECT_SCHEDULE_IR_SCHEDULETYPES_H_
 
 #include "klw/compiler/Dialect/Schedule/IR/ScheduleDialect.h"
-#include "klw/compiler/Dialect/Util/IR/UtilTypes.h"
+#include "iree/compiler/Dialect/Util/IR/UtilTypes.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
