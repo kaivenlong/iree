@@ -1,14 +1,14 @@
-// Copyright 2021 The IREE Authors
+// Copyright 2021 The KLW Authors
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#ifndef IREE_DIALECT_STREAM_OPS
-#define IREE_DIALECT_STREAM_OPS
+#ifndef KLW_DIALECT_SCHEDULE_OPS
+#define KLW_DIALECT_SCHEDULE_OPS
 
-include "iree/compiler/Dialect/Stream/IR/StreamBase.td"
-include "iree/compiler/Dialect/Stream/IR/StreamInterfaces.td"
+include "klw/compiler/Dialect/Schedule/IR/ScheduleBase.td"
+include "klw/compiler/Dialect/Schedule/IR/ScheduleInterfaces.td"
 include "iree/compiler/Dialect/Util/IR/UtilInterfaces.td"
 include "mlir/IR/OpAsmInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
@@ -17,15 +17,15 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ViewLikeInterface.td"
 
-class Stream_PureOp<string mnemonic, list<Trait> traits = []> :
-    Stream_Op<mnemonic, !listconcat(traits, [NoSideEffect])>;
+class Schedule_PureOp<string mnemonic, list<Trait> traits = []> :
+    Schedule_Op<mnemonic, !listconcat(traits, [NoSideEffect])>;
 
 //===----------------------------------------------------------------------===//
 // Generic resource ops
 //===----------------------------------------------------------------------===//
 
-def Stream_ResourceAllocOp : Stream_PureOp<"resource.alloc", [
-  DeclareOpInterfaceMethods<Stream_AffinityOp, [
+def Schedule_ResourceAllocOp : Schedule_PureOp<"resource.alloc", [
+  DeclareOpInterfaceMethods<Schedule_AffinityOp, [
     "getAffinity",
     "setAffinity",
   ]>,
@@ -53,12 +53,12 @@ def Stream_ResourceAllocOp : Stream_PureOp<"resource.alloc", [
   }];
 
   let arguments = (ins
-    Variadic<Stream_Size>:$storage_sizes,
+    Variadic<Schedule_Size>:$storage_sizes,
     UnitAttr:$uninitialized,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Variadic<Stream_AnyResource>:$results
+    Variadic<Schedule_AnyResource>:$results
   );
 
   let assemblyFormat = [{
@@ -77,12 +77,12 @@ def Stream_ResourceAllocOp : Stream_PureOp<"resource.alloc", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourceAllocaOp : Stream_PureOp<"resource.alloca", [
-  DeclareOpInterfaceMethods<Stream_AffinityOp, [
+def Schedule_ResourceAllocaOp : Schedule_PureOp<"resource.alloca", [
+  DeclareOpInterfaceMethods<Schedule_AffinityOp, [
     "getAffinity",
     "setAffinity",
   ]>,
-  Stream_TimelineOp,
+  Schedule_TimelineOp,
   Util_SizeAwareOp,
   MemoryEffects<[MemAlloc]>,
 ]> {
@@ -97,16 +97,16 @@ def Stream_ResourceAllocaOp : Stream_PureOp<"resource.alloca", [
   }];
 
   let arguments = (ins
-    Stream_Size:$storage_size,
-    Optional<Stream_Timepoint>:$await_timepoint,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Size:$storage_size,
+    Optional<Schedule_Timepoint>:$await_timepoint,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     AnyTypeOf<[
-      Stream_StagingResource,
-      Stream_TransientResource,
+      Schedule_StagingResource,
+      Schedule_TransientResource,
     ]>:$result,
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let assemblyFormat = [{
@@ -130,12 +130,12 @@ def Stream_ResourceAllocaOp : Stream_PureOp<"resource.alloca", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourceDeallocaOp : Stream_Op<"resource.dealloca", [
-  DeclareOpInterfaceMethods<Stream_AffinityOp, [
+def Schedule_ResourceDeallocaOp : Schedule_Op<"resource.dealloca", [
+  DeclareOpInterfaceMethods<Schedule_AffinityOp, [
     "getAffinity",
     "setAffinity",
   ]>,
-  Stream_TimelineOp,
+  Schedule_TimelineOp,
   Util_SizeAwareOp,
   MemoryEffects<[MemFree]>,
 ]> {
@@ -151,15 +151,15 @@ def Stream_ResourceDeallocaOp : Stream_Op<"resource.dealloca", [
 
   let arguments = (ins
     AnyTypeOf<[
-      Stream_StagingResource,
-      Stream_TransientResource,
+      Schedule_StagingResource,
+      Schedule_TransientResource,
     ]>:$operand,
-    Stream_Size:$operand_size,
-    Optional<Stream_Timepoint>:$await_timepoint,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Size:$operand_size,
+    Optional<Schedule_Timepoint>:$await_timepoint,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let assemblyFormat = [{
@@ -181,8 +181,8 @@ def Stream_ResourceDeallocaOp : Stream_Op<"resource.dealloca", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourceSizeOp : Stream_PureOp<"resource.size", [
-  Stream_AffinityOp,
+def Schedule_ResourceSizeOp : Schedule_PureOp<"resource.size", [
+  Schedule_AffinityOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{returns the size of the resource storage in bytes}];
@@ -194,11 +194,11 @@ def Stream_ResourceSizeOp : Stream_PureOp<"resource.size", [
   }];
 
   let arguments = (ins
-    Stream_AnyResource:$operand,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_AnyResource:$operand,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_Size:$result
+    Schedule_Size:$result
   );
 
   let assemblyFormat = [{
@@ -216,8 +216,8 @@ def Stream_ResourceSizeOp : Stream_PureOp<"resource.size", [
   let hasFolder = 1;
 }
 
-def Stream_ResourceMapOp : Stream_Op<"resource.map", [
-  Stream_AffinityOp,
+def Schedule_ResourceMapOp : Schedule_Op<"resource.map", [
+  Schedule_AffinityOp,
   Util_SizeAwareOp,
   MemoryEffects<[MemAlloc]>,
 ]> {
@@ -231,12 +231,12 @@ def Stream_ResourceMapOp : Stream_Op<"resource.map", [
 
   let arguments = (ins
     Util_BufferType:$source,
-    Stream_Offset:$source_offset,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Offset:$source_offset,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_StagingResource:$result
+    Schedule_StagingResource:$result
   );
 
   let assemblyFormat = [{
@@ -258,8 +258,8 @@ def Stream_ResourceMapOp : Stream_Op<"resource.map", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourceTryMapOp : Stream_PureOp<"resource.try_map", [
-  Stream_AffinityOp,
+def Schedule_ResourceTryMapOp : Schedule_PureOp<"resource.try_map", [
+  Schedule_AffinityOp,
   Util_SizeAwareOp,
   MemoryEffects<[MemAlloc]>,
 ]> {
@@ -274,13 +274,13 @@ def Stream_ResourceTryMapOp : Stream_PureOp<"resource.try_map", [
 
   let arguments = (ins
     Util_BufferType:$source,
-    Stream_Offset:$source_offset,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Offset:$source_offset,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     I1:$did_map,
-    Stream_ConstantResource:$result
+    Schedule_ConstantResource:$result
   );
 
   let assemblyFormat = [{
@@ -302,7 +302,7 @@ def Stream_ResourceTryMapOp : Stream_PureOp<"resource.try_map", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourceLoadOp : Stream_Op<"resource.load", [
+def Schedule_ResourceLoadOp : Schedule_Op<"resource.load", [
   Util_SizeAwareOp,
 ]> {
   let summary = [{loads a value from a staging resource}];
@@ -313,12 +313,12 @@ def Stream_ResourceLoadOp : Stream_Op<"resource.load", [
   }];
 
   let arguments = (ins
-    Stream_StagingResource:$source,
-    Stream_Size:$source_size,
-    Stream_Offset:$source_offset
+    Schedule_StagingResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Offset:$source_offset
   );
   let results = (outs
-    AnyTypeOf<[Stream_PrimitiveType, AnyVector]>:$result
+    AnyTypeOf<[Schedule_PrimitiveType, AnyVector]>:$result
   );
 
   let assemblyFormat = [{
@@ -339,7 +339,7 @@ def Stream_ResourceLoadOp : Stream_Op<"resource.load", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourceStoreOp : Stream_Op<"resource.store", [
+def Schedule_ResourceStoreOp : Schedule_Op<"resource.store", [
   Util_SizeAwareOp,
   MemoryEffects<[MemWrite]>,
 ]> {
@@ -350,10 +350,10 @@ def Stream_ResourceStoreOp : Stream_Op<"resource.store", [
   }];
 
   let arguments = (ins
-    Stream_StagingResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    AnyTypeOf<[Stream_PrimitiveType, AnyVector]>:$value
+    Schedule_StagingResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    AnyTypeOf<[Schedule_PrimitiveType, AnyVector]>:$value
   );
 
   let assemblyFormat = [{
@@ -375,10 +375,10 @@ def Stream_ResourceStoreOp : Stream_Op<"resource.store", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_ResourcePackOp : Stream_PureOp<"resource.pack", [
+def Schedule_ResourcePackOp : Schedule_PureOp<"resource.pack", [
   AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
-  Stream_AffinityOp,
+  Schedule_AffinityOp,
 ]> {
   let summary = [{packs variable-sized slices into a single slab}];
   let description = [{
@@ -423,14 +423,14 @@ def Stream_ResourcePackOp : Stream_PureOp<"resource.pack", [
   }];
 
   let arguments = (ins
-    Optional<Stream_Offset>:$offset,
-    Stream_IndexArrayAttr:$lifetime_intervals,
-    Variadic<Stream_Size>:$dynamic_slice_sizes,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Optional<Schedule_Offset>:$offset,
+    Schedule_IndexArrayAttr:$lifetime_intervals,
+    Variadic<Schedule_Size>:$dynamic_slice_sizes,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_Size:$total_length,
-    Variadic<Stream_Offset>:$packed_offsets
+    Schedule_Size:$total_length,
+    Variadic<Schedule_Offset>:$packed_offsets
   );
 
   let assemblyFormat = [{
@@ -480,10 +480,10 @@ def Stream_ResourcePackOp : Stream_PureOp<"resource.pack", [
   let hasFolder = 1;
 }
 
-def Stream_ResourceConstantsOp : Stream_PureOp<"resource.constants", [
+def Schedule_ResourceConstantsOp : Schedule_PureOp<"resource.constants", [
   SameVariadicResultSize,
-  Stream_AffinityOp,
-  Stream_TimelineOp,
+  Schedule_AffinityOp,
+  Schedule_TimelineOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{asynchronously uploads or maps constant values}];
@@ -512,15 +512,15 @@ def Stream_ResourceConstantsOp : Stream_PureOp<"resource.constants", [
 
   let arguments = (ins
     TypedArrayAttrBase<ElementsAttr, "constant value array attribute">:$values,
-    Variadic<Stream_Size>:$result_sizes,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Variadic<Schedule_Size>:$result_sizes,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     Variadic<AnyTypeOf<[
-      Stream_ConstantResource,
-      Stream_VariableResource,
+      Schedule_ConstantResource,
+      Schedule_VariableResource,
     ]>>:$results,
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let assemblyFormat = [{
@@ -541,10 +541,10 @@ def Stream_ResourceConstantsOp : Stream_PureOp<"resource.constants", [
   }];
 }
 
-def Stream_ResourceSubviewOp : Stream_PureOp<"resource.subview", [
+def Schedule_ResourceSubviewOp : Schedule_PureOp<"resource.subview", [
   AllTypesMatch<["source", "result"]>,
   DeclareOpInterfaceMethods<ViewLikeOpInterface>,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "isMetadata",
   ]>,
   Util_SizeAwareOp,
@@ -561,13 +561,13 @@ def Stream_ResourceSubviewOp : Stream_PureOp<"resource.subview", [
   }];
 
   let arguments = (ins
-    Stream_AnyResource:$source,
-    Stream_Size:$source_size,
-    Stream_Offset:$source_offset,
-    Stream_Size:$result_size
+    Schedule_AnyResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Offset:$source_offset,
+    Schedule_Size:$result_size
   );
   let results = (outs
-    Stream_AnyResource:$result
+    Schedule_AnyResource:$result
   );
 
   let assemblyFormat = [{
@@ -588,7 +588,7 @@ def Stream_ResourceSubviewOp : Stream_PureOp<"resource.subview", [
     Value getSubrangeResult() { return getResult(); }
 
     // Walks up the use-def chain to find a subview op that feeds into |value|.
-    static IREE::Stream::ResourceSubviewOp findSubviewOp(Value value);
+    static KLW::Schedule::ResourceSubviewOp findSubviewOp(Value value);
   }];
 
   let hasVerifier = 1;
@@ -601,8 +601,8 @@ def Stream_ResourceSubviewOp : Stream_PureOp<"resource.subview", [
 // Pseudo ops for conversion support
 //===----------------------------------------------------------------------===//
 
-def Stream_TensorImportOp : Stream_PureOp<"tensor.import", [
-  Stream_AffinityOp,
+def Schedule_TensorImportOp : Schedule_PureOp<"tensor.import", [
+  Schedule_AffinityOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
@@ -622,12 +622,12 @@ def Stream_TensorImportOp : Stream_PureOp<"tensor.import", [
   let arguments = (ins
     AnyType:$source,
     TypeAttr:$result_encoding,
-    Stream_ShapeDynamicDims:$result_encoding_dims,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$result_encoding_dims,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_ExternalResource:$result
+    Schedule_ExternalResource:$result
   );
 
   let assemblyFormat = [{
@@ -654,8 +654,8 @@ def Stream_TensorImportOp : Stream_PureOp<"tensor.import", [
   let hasFolder = 1;
 }
 
-def Stream_TensorExportOp : Stream_PureOp<"tensor.export", [
-  Stream_AffinityOp,
+def Schedule_TensorExportOp : Schedule_PureOp<"tensor.export", [
+  Schedule_AffinityOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
@@ -673,11 +673,11 @@ def Stream_TensorExportOp : Stream_PureOp<"tensor.export", [
   }];
 
   let arguments = (ins
-    Stream_ExternalResource:$source,
+    Schedule_ExternalResource:$source,
     TypeAttr:$source_encoding,
-    Stream_ShapeDynamicDims:$source_encoding_dims,
-    Stream_Size:$source_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$source_encoding_dims,
+    Schedule_Size:$source_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     AnyType:$result
@@ -711,9 +711,9 @@ def Stream_TensorExportOp : Stream_PureOp<"tensor.export", [
 // High-level tensor ops
 //===----------------------------------------------------------------------===//
 
-def Stream_TensorSizeOfOp : Stream_PureOp<"tensor.sizeof", [
-  Stream_AffinityOp,
-  Stream_TensorPhaseOp,
+def Schedule_TensorSizeOfOp : Schedule_PureOp<"tensor.sizeof", [
+  Schedule_AffinityOp,
+  Schedule_TensorPhaseOp,
 ]> {
   let summary = [{calculates the storage size of a given high-level type}];
   let description = [{
@@ -726,11 +726,11 @@ def Stream_TensorSizeOfOp : Stream_PureOp<"tensor.sizeof", [
 
   let arguments = (ins
     TypeAttr:$encoding,
-    Stream_ShapeDynamicDims:$encoding_dims,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$encoding_dims,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_Size:$storage_size
+    Schedule_Size:$storage_size
   );
 
   let assemblyFormat = [{
@@ -742,10 +742,10 @@ def Stream_TensorSizeOfOp : Stream_PureOp<"tensor.sizeof", [
   let hasVerifier = 1;
 }
 
-def Stream_TensorEmptyOp : Stream_PureOp<"tensor.empty", [
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+def Schedule_TensorEmptyOp : Schedule_PureOp<"tensor.empty", [
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
@@ -759,12 +759,12 @@ def Stream_TensorEmptyOp : Stream_PureOp<"tensor.empty", [
 
   let arguments = (ins
     TypeAttr:$result_encoding,
-    Stream_ShapeDynamicDims:$result_encoding_dims,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$result_encoding_dims,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -786,10 +786,10 @@ def Stream_TensorEmptyOp : Stream_PureOp<"tensor.empty", [
   let hasVerifier = 1;
 }
 
-def Stream_TensorConstantOp : Stream_PureOp<"tensor.constant", [
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+def Schedule_TensorConstantOp : Schedule_PureOp<"tensor.constant", [
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   DeclareOpInterfaceMethods<OpAsmOpInterface, ["getAsmResultNames"]>,
 ]> {
@@ -801,11 +801,11 @@ def Stream_TensorConstantOp : Stream_PureOp<"tensor.constant", [
   let arguments = (ins
     ElementsAttr:$value,
     TypeAttr:$result_encoding,
-    Stream_ShapeDynamicDims:$result_encoding_dims,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$result_encoding_dims,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -829,10 +829,10 @@ def Stream_TensorConstantOp : Stream_PureOp<"tensor.constant", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_TensorSplatOp : Stream_PureOp<"tensor.splat", [
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+def Schedule_TensorSplatOp : Schedule_PureOp<"tensor.splat", [
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
 ]> {
@@ -842,14 +842,14 @@ def Stream_TensorSplatOp : Stream_PureOp<"tensor.splat", [
   }];
 
   let arguments = (ins
-    Stream_PrimitiveType:$value,
+    Schedule_PrimitiveType:$value,
     TypeAttr:$result_encoding,
-    Stream_ShapeDynamicDims:$result_encoding_dims,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$result_encoding_dims,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -875,11 +875,11 @@ def Stream_TensorSplatOp : Stream_PureOp<"tensor.splat", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_TensorCloneOp : Stream_PureOp<"tensor.clone", [
+def Schedule_TensorCloneOp : Schedule_PureOp<"tensor.clone", [
   AttrSizedOperandSegments,
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
 ]> {
@@ -890,17 +890,17 @@ def Stream_TensorCloneOp : Stream_PureOp<"tensor.clone", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$source,
+    Schedule_AnyScheduleResource:$source,
     TypeAttr:$source_encoding,
-    Stream_ShapeDynamicDims:$source_encoding_dims,
-    Stream_Size:$source_size,
+    Schedule_ShapeDynamicDims:$source_encoding_dims,
+    Schedule_Size:$source_size,
     TypeAttr:$result_encoding,
-    Stream_ShapeDynamicDims:$result_encoding_dims,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$result_encoding_dims,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -929,11 +929,11 @@ def Stream_TensorCloneOp : Stream_PureOp<"tensor.clone", [
   let hasFolder = 1;
 }
 
-def Stream_TensorSliceOp : Stream_PureOp<"tensor.slice", [
+def Schedule_TensorSliceOp : Schedule_PureOp<"tensor.slice", [
   AttrSizedOperandSegments,
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
 ]> {
@@ -944,19 +944,19 @@ def Stream_TensorSliceOp : Stream_PureOp<"tensor.slice", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$source,
+    Schedule_AnyScheduleResource:$source,
     TypeAttr:$source_encoding,
-    Stream_ShapeDynamicDims:$source_encoding_dims,
-    Stream_Size:$source_size,
-    Variadic<Stream_Dim>:$start_indices,
-    Variadic<Stream_Dim>:$lengths,
+    Schedule_ShapeDynamicDims:$source_encoding_dims,
+    Schedule_Size:$source_size,
+    Variadic<Schedule_Dim>:$start_indices,
+    Variadic<Schedule_Dim>:$lengths,
     TypeAttr:$result_encoding,
-    Stream_ShapeDynamicDims:$result_encoding_dims,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$result_encoding_dims,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -985,12 +985,12 @@ def Stream_TensorSliceOp : Stream_PureOp<"tensor.slice", [
   let hasFolder = 1;
 }
 
-def Stream_TensorFillOp : Stream_Op<"tensor.fill", [
+def Schedule_TensorFillOp : Schedule_Op<"tensor.fill", [
   AttrSizedOperandSegments,
   AllTypesMatch<["target", "result"]>,
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
@@ -1008,17 +1008,17 @@ def Stream_TensorFillOp : Stream_Op<"tensor.fill", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
+    Schedule_AnyScheduleResource:$target,
     TypeAttr:$target_encoding,
-    Stream_ShapeDynamicDims:$target_encoding_dims,
-    Stream_Size:$target_size,
-    Variadic<Stream_Dim>:$start_indices,
-    Variadic<Stream_Dim>:$lengths,
-    Stream_PrimitiveType:$value,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$target_encoding_dims,
+    Schedule_Size:$target_size,
+    Variadic<Schedule_Dim>:$start_indices,
+    Variadic<Schedule_Dim>:$lengths,
+    Schedule_PrimitiveType:$value,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1044,12 +1044,12 @@ def Stream_TensorFillOp : Stream_Op<"tensor.fill", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_TensorUpdateOp : Stream_Op<"tensor.update", [
+def Schedule_TensorUpdateOp : Schedule_Op<"tensor.update", [
   AttrSizedOperandSegments,
   AllTypesMatch<["target", "result"]>,
-  Stream_AffinityOp,
-  Stream_StreamableOp,
-  Stream_TensorPhaseOp,
+  Schedule_AffinityOp,
+  Schedule_ScheduleableOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
@@ -1065,19 +1065,19 @@ def Stream_TensorUpdateOp : Stream_Op<"tensor.update", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
+    Schedule_AnyScheduleResource:$target,
     TypeAttr:$target_encoding,
-    Stream_ShapeDynamicDims:$target_encoding_dims,
-    Stream_Size:$target_size,
-    Variadic<Stream_Dim>:$start_indices,
-    Stream_AnyStreamResource:$update,
+    Schedule_ShapeDynamicDims:$target_encoding_dims,
+    Schedule_Size:$target_size,
+    Variadic<Schedule_Dim>:$start_indices,
+    Schedule_AnyScheduleResource:$update,
     TypeAttr:$update_encoding,
-    Stream_ShapeDynamicDims:$update_encoding_dims,
-    Stream_Size:$update_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_ShapeDynamicDims:$update_encoding_dims,
+    Schedule_Size:$update_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1110,9 +1110,9 @@ def Stream_TensorUpdateOp : Stream_Op<"tensor.update", [
   let hasFolder = 1;
 }
 
-def Stream_TensorLoadOp : Stream_PureOp<"tensor.load", [
+def Schedule_TensorLoadOp : Schedule_PureOp<"tensor.load", [
   AttrSizedOperandSegments,
-  Stream_TensorPhaseOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
 ]> {
@@ -1122,14 +1122,14 @@ def Stream_TensorLoadOp : Stream_PureOp<"tensor.load", [
   }];
 
   let arguments = (ins
-    Stream_StagingResource:$source,
+    Schedule_StagingResource:$source,
     TypeAttr:$source_encoding,
-    Stream_ShapeDynamicDims:$source_encoding_dims,
-    Stream_Size:$source_size,
-    Variadic<Stream_Dim>:$indices
+    Schedule_ShapeDynamicDims:$source_encoding_dims,
+    Schedule_Size:$source_size,
+    Variadic<Schedule_Dim>:$indices
   );
   let results = (outs
-    AnyTypeOf<[Stream_PrimitiveType, AnyVector]>:$result
+    AnyTypeOf<[Schedule_PrimitiveType, AnyVector]>:$result
   );
 
   let assemblyFormat = [{
@@ -1154,10 +1154,10 @@ def Stream_TensorLoadOp : Stream_PureOp<"tensor.load", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_TensorStoreOp : Stream_PureOp<"tensor.store", [
+def Schedule_TensorStoreOp : Schedule_PureOp<"tensor.store", [
   AttrSizedOperandSegments,
   AllTypesMatch<["target", "result"]>,
-  Stream_TensorPhaseOp,
+  Schedule_TensorPhaseOp,
   Util_ShapeAwareOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
@@ -1172,15 +1172,15 @@ def Stream_TensorStoreOp : Stream_PureOp<"tensor.store", [
   }];
 
   let arguments = (ins
-    Stream_StagingResource:$target,
+    Schedule_StagingResource:$target,
     TypeAttr:$target_encoding,
-    Stream_ShapeDynamicDims:$target_encoding_dims,
-    Stream_Size:$target_size,
-    Variadic<Stream_Dim>:$indices,
-    AnyTypeOf<[Stream_PrimitiveType, AnyVector]>:$value
+    Schedule_ShapeDynamicDims:$target_encoding_dims,
+    Schedule_Size:$target_size,
+    Variadic<Schedule_Dim>:$indices,
+    AnyTypeOf<[Schedule_PrimitiveType, AnyVector]>:$value
   );
   let results = (outs
-    Stream_StagingResource:$result
+    Schedule_StagingResource:$result
   );
 
   let assemblyFormat = [{
@@ -1206,7 +1206,7 @@ def Stream_TensorStoreOp : Stream_PureOp<"tensor.store", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_TensorTraceOp : Stream_Op<"tensor.trace", []> {
+def Schedule_TensorTraceOp : Schedule_Op<"tensor.trace", []> {
   let summary = [{trace value(s) operation}];
   let description = [{
     Traces out to a runtime trace sink (console, log file, etc) the given
@@ -1231,10 +1231,10 @@ def Stream_TensorTraceOp : Stream_Op<"tensor.trace", []> {
 // data types not supported by the lower-level stream ops (stream.async.* and
 // stream.cmd.*).
 
-def Stream_BuiltinSplatI64Op : Stream_Op<"builtin.splat.i64", [
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_BuiltinOp, [
+def Schedule_BuiltinSplatI64Op : Schedule_Op<"builtin.splat.i64", [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_BuiltinOp, [
     "mergeBuiltinModule",
     "convertBuiltinOp",
   ]>,
@@ -1249,11 +1249,11 @@ def Stream_BuiltinSplatI64Op : Stream_Op<"builtin.splat.i64", [
 
   let arguments = (ins
     I64:$value,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1270,11 +1270,11 @@ def Stream_BuiltinSplatI64Op : Stream_Op<"builtin.splat.i64", [
   let hasVerifier = 1;
 }
 
-def Stream_BuiltinFillI64Op : Stream_Op<"builtin.fill.i64", [
+def Schedule_BuiltinFillI64Op : Schedule_Op<"builtin.fill.i64", [
   AllTypesMatch<["target", "result"]>,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_BuiltinOp, [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_BuiltinOp, [
     "mergeBuiltinModule",
     "convertBuiltinOp",
   ]>,
@@ -1293,16 +1293,16 @@ def Stream_BuiltinFillI64Op : Stream_Op<"builtin.fill.i64", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Offset:$target_end,
-    Stream_Size:$target_length,
+    Schedule_AnyScheduleResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Offset:$target_end,
+    Schedule_Size:$target_length,
     I64:$value,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1326,13 +1326,13 @@ def Stream_BuiltinFillI64Op : Stream_Op<"builtin.fill.i64", [
 // Resource transfer ops
 //===----------------------------------------------------------------------===//
 
-def Stream_AsyncAllocaOp : Stream_PureOp<"async.alloca", [
-  DeclareOpInterfaceMethods<Stream_AffinityOp, [
+def Schedule_AsyncAllocaOp : Schedule_PureOp<"async.alloca", [
+  DeclareOpInterfaceMethods<Schedule_AffinityOp, [
     "getAffinity",
     "setAffinity",
   ]>,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "isMetadata",
     "preferCloneToConsumers",
   ]>,
@@ -1347,11 +1347,11 @@ def Stream_AsyncAllocaOp : Stream_PureOp<"async.alloca", [
   }];
 
   let arguments = (ins
-    Stream_Size:$storage_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Size:$storage_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_TransientResource:$result
+    Schedule_TransientResource:$result
   );
 
   let assemblyFormat = [{
@@ -1367,10 +1367,10 @@ def Stream_AsyncAllocaOp : Stream_PureOp<"async.alloca", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncConstantOp : Stream_PureOp<"async.constant", [
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+def Schedule_AsyncConstantOp : Schedule_PureOp<"async.constant", [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "isMetadata",
   ]>,
   Util_SizeAwareOp,
@@ -1383,11 +1383,11 @@ def Stream_AsyncConstantOp : Stream_PureOp<"async.constant", [
 
   let arguments = (ins
     ElementsAttr:$value,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1409,10 +1409,10 @@ def Stream_AsyncConstantOp : Stream_PureOp<"async.constant", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncSplatOp : Stream_Op<"async.splat", [
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+def Schedule_AsyncSplatOp : Schedule_Op<"async.splat", [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "preferCloneToConsumers",
   ]>,
   Util_SizeAwareOp,
@@ -1424,12 +1424,12 @@ def Stream_AsyncSplatOp : Stream_Op<"async.splat", [
   }];
 
   let arguments = (ins
-    Stream_FillPatternType:$value,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_FillPatternType:$value,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1448,10 +1448,10 @@ def Stream_AsyncSplatOp : Stream_Op<"async.splat", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncCloneOp : Stream_Op<"async.clone", [
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+def Schedule_AsyncCloneOp : Schedule_Op<"async.clone", [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "preferCloneToConsumers",
   ]>,
   Util_SizeAwareOp,
@@ -1463,13 +1463,13 @@ def Stream_AsyncCloneOp : Stream_Op<"async.clone", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$source,
-    Stream_Size:$source_size,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_AnyScheduleResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1491,11 +1491,11 @@ def Stream_AsyncCloneOp : Stream_Op<"async.clone", [
   let hasFolder = 1;
 }
 
-def Stream_AsyncSliceOp : Stream_PureOp<"async.slice", [
+def Schedule_AsyncSliceOp : Schedule_PureOp<"async.slice", [
   AllTypesMatch<["source", "result"]>,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "isMetadata",
   ]>,
   Util_SizeAwareOp,
@@ -1507,15 +1507,15 @@ def Stream_AsyncSliceOp : Stream_PureOp<"async.slice", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$source,
-    Stream_Size:$source_size,
-    Stream_Offset:$source_offset,
-    Stream_Offset:$source_end,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_AnyScheduleResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Offset:$source_offset,
+    Schedule_Offset:$source_end,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1537,11 +1537,11 @@ def Stream_AsyncSliceOp : Stream_PureOp<"async.slice", [
   let hasFolder = 1;
 }
 
-def Stream_AsyncFillOp : Stream_Op<"async.fill", [
+def Schedule_AsyncFillOp : Schedule_Op<"async.fill", [
   AllTypesMatch<["target", "result"]>,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  Stream_StreamableOp,
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  Schedule_ScheduleableOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
     "getTiedResult",
@@ -1558,16 +1558,16 @@ def Stream_AsyncFillOp : Stream_Op<"async.fill", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Offset:$target_end,
-    Stream_Size:$target_length,
-    Stream_FillPatternType:$value,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_AnyScheduleResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Offset:$target_end,
+    Schedule_Size:$target_length,
+    Schedule_FillPatternType:$value,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1589,11 +1589,11 @@ def Stream_AsyncFillOp : Stream_Op<"async.fill", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncUpdateOp : Stream_Op<"async.update", [
+def Schedule_AsyncUpdateOp : Schedule_Op<"async.update", [
   AllTypesMatch<["target", "result"]>,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  DeclareOpInterfaceMethods<Stream_StreamableOp, [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  DeclareOpInterfaceMethods<Schedule_ScheduleableOp, [
     "isMetadata",
   ]>,
   Util_SizeAwareOp,
@@ -1611,16 +1611,16 @@ def Stream_AsyncUpdateOp : Stream_Op<"async.update", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Offset:$target_end,
-    Stream_AnyStreamResource:$update,
-    Stream_Size:$update_size,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_AnyScheduleResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Offset:$target_end,
+    Schedule_AnyScheduleResource:$update,
+    Schedule_Size:$update_size,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1645,11 +1645,11 @@ def Stream_AsyncUpdateOp : Stream_Op<"async.update", [
   let hasFolder = 1;
 }
 
-def Stream_AsyncCopyOp : Stream_Op<"async.copy", [
+def Schedule_AsyncCopyOp : Schedule_Op<"async.copy", [
   AllTypesMatch<["target", "result"]>,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  Stream_StreamableOp,
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  Schedule_ScheduleableOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
     "getTiedResult",
@@ -1668,19 +1668,19 @@ def Stream_AsyncCopyOp : Stream_Op<"async.copy", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Offset:$target_end,
-    Stream_AnyStreamResource:$source,
-    Stream_Size:$source_size,
-    Stream_Offset:$source_offset,
-    Stream_Offset:$source_end,
-    Stream_Size:$length,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_AnyScheduleResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Offset:$target_end,
+    Schedule_AnyScheduleResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Offset:$source_offset,
+    Schedule_Offset:$source_end,
+    Schedule_Size:$length,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_AnyStreamResource:$result
+    Schedule_AnyScheduleResource:$result
   );
 
   let assemblyFormat = [{
@@ -1705,10 +1705,10 @@ def Stream_AsyncCopyOp : Stream_Op<"async.copy", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncTransferOp : Stream_Op<"async.transfer", [
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  Stream_StreamableOp,
+def Schedule_AsyncTransferOp : Schedule_Op<"async.transfer", [
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  Schedule_ScheduleableOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{transfers a resource from one location/state to another}];
@@ -1721,18 +1721,18 @@ def Stream_AsyncTransferOp : Stream_Op<"async.transfer", [
 
   let arguments = (ins
     AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>:$source,
-    Stream_Size:$source_size,
-    Stream_Size:$result_size,
-    OptionalAttr<Stream_AffinityAttr>:$source_affinity,
-    OptionalAttr<Stream_AffinityAttr>:$result_affinity
+    Schedule_Size:$source_size,
+    Schedule_Size:$result_size,
+    OptionalAttr<Schedule_AffinityAttr>:$source_affinity,
+    OptionalAttr<Schedule_AffinityAttr>:$result_affinity
   );
   let results = (outs
     AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>:$result
   );
 
@@ -1756,8 +1756,8 @@ def Stream_AsyncTransferOp : Stream_Op<"async.transfer", [
   let hasFolder = 1;
 }
 
-def Stream_AsyncLoadOp : Stream_PureOp<"async.load", [
-  Stream_AsyncPhaseOp,
+def Schedule_AsyncLoadOp : Schedule_PureOp<"async.load", [
+  Schedule_AsyncPhaseOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{loads a value from a resource}];
@@ -1766,12 +1766,12 @@ def Stream_AsyncLoadOp : Stream_PureOp<"async.load", [
   }];
 
   let arguments = (ins
-    Stream_StagingResource:$source,
-    Stream_Size:$source_size,
-    Stream_Offset:$source_offset
+    Schedule_StagingResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Offset:$source_offset
   );
   let results = (outs
-    AnyTypeOf<[Stream_PrimitiveType, AnyVector]>:$result
+    AnyTypeOf<[Schedule_PrimitiveType, AnyVector]>:$result
   );
 
   let assemblyFormat = [{
@@ -1792,9 +1792,9 @@ def Stream_AsyncLoadOp : Stream_PureOp<"async.load", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncStoreOp : Stream_PureOp<"async.store", [
+def Schedule_AsyncStoreOp : Schedule_PureOp<"async.store", [
   AllTypesMatch<["target", "result"]>,
-  Stream_AsyncPhaseOp,
+  Schedule_AsyncPhaseOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
     "getTiedResult",
@@ -1809,13 +1809,13 @@ def Stream_AsyncStoreOp : Stream_PureOp<"async.store", [
   }];
 
   let arguments = (ins
-    Stream_StagingResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    AnyTypeOf<[Stream_PrimitiveType, AnyVector]>:$value
+    Schedule_StagingResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    AnyTypeOf<[Schedule_PrimitiveType, AnyVector]>:$value
   );
   let results = (outs
-    Stream_StagingResource:$result
+    Schedule_StagingResource:$result
   );
 
   let assemblyFormat = [{
@@ -1837,12 +1837,12 @@ def Stream_AsyncStoreOp : Stream_PureOp<"async.store", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncDispatchOp : Stream_Op<"async.dispatch", [
+def Schedule_AsyncDispatchOp : Schedule_Op<"async.dispatch", [
   AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  Stream_StreamableOp,
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  Schedule_ScheduleableOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
     "getTiedOperandsIndexAndLength",
@@ -1859,16 +1859,16 @@ def Stream_AsyncDispatchOp : Stream_Op<"async.dispatch", [
     Variadic<Index>:$workload,
     SymbolRefAttr:$entry_point,
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_PrimitiveType,
+      Schedule_AnyScheduleResource,
+      Schedule_PrimitiveType,
     ]>>:$resource_operands,
-    Variadic<Stream_Size>:$resource_operand_sizes,
-    Variadic<Stream_Size>:$result_sizes,
+    Variadic<Schedule_Size>:$resource_operand_sizes,
+    Variadic<Schedule_Size>:$result_sizes,
     OptionalAttr<Util_TiedOpStorageAttr>:$tied_operands,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Variadic<Stream_AnyStreamResource>:$results
+    Variadic<Schedule_AnyScheduleResource>:$results
   );
 
   let assemblyFormat = [{
@@ -1904,16 +1904,16 @@ def Stream_AsyncDispatchOp : Stream_Op<"async.dispatch", [
 // TODO(benvanik): stream.async.select
 // TODO(benvanik): stream.async.for
 
-def Stream_AsyncExecuteOp : Stream_Op<"async.execute", [
+def Schedule_AsyncExecuteOp : Schedule_Op<"async.execute", [
   AttrSizedOperandSegments,
   RecursiveSideEffects,
   DeclareOpInterfaceMethods<RegionBranchOpInterface, [
     "getSuccessorEntryOperands",
   ]>,
-  SingleBlockImplicitTerminator<"IREE::Stream::YieldOp">,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  Stream_TimelineOp,
+  SingleBlockImplicitTerminator<"KLW::Schedule::YieldOp">,
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  Schedule_TimelineOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_ClosureOpInterface>,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
@@ -1934,21 +1934,21 @@ def Stream_AsyncExecuteOp : Stream_Op<"async.execute", [
 
   let arguments = (ins
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$resource_operands,
-    Variadic<Stream_Size>:$resource_operand_sizes,
-    Variadic<Stream_Size>:$result_sizes,
-    Optional<Stream_Timepoint>:$await_timepoint,
+    Variadic<Schedule_Size>:$resource_operand_sizes,
+    Variadic<Schedule_Size>:$result_sizes,
+    Optional<Schedule_Timepoint>:$await_timepoint,
     OptionalAttr<Util_TiedOpStorageAttr>:$tied_operands,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$results,
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let regions = (region AnyRegion:$body);
@@ -1992,20 +1992,20 @@ def Stream_AsyncExecuteOp : Stream_Op<"async.execute", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_AsyncConcurrentOp : Stream_Op<"async.concurrent", [
+def Schedule_AsyncConcurrentOp : Schedule_Op<"async.concurrent", [
   ParentOneOf<[
-    "IREE::Stream::AsyncExecuteOp",
-    "IREE::Stream::AsyncConcurrentOp",
+    "KLW::Schedule::AsyncExecuteOp",
+    "KLW::Schedule::AsyncConcurrentOp",
   ]>,
   AttrSizedOperandSegments,
   RecursiveSideEffects,
   DeclareOpInterfaceMethods<RegionBranchOpInterface, [
     "getSuccessorEntryOperands",
   ]>,
-  SingleBlockImplicitTerminator<"IREE::Stream::YieldOp">,
-  Stream_AffinityOp,
-  Stream_AsyncPhaseOp,
-  Stream_StreamableOp,
+  SingleBlockImplicitTerminator<"KLW::Schedule::YieldOp">,
+  Schedule_AffinityOp,
+  Schedule_AsyncPhaseOp,
+  Schedule_ScheduleableOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_ClosureOpInterface>,
   DeclareOpInterfaceMethods<Util_TiedOpInterface>,
@@ -2051,18 +2051,18 @@ def Stream_AsyncConcurrentOp : Stream_Op<"async.concurrent", [
 
   let arguments = (ins
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$resource_operands,
-    Variadic<Stream_Size>:$resource_operand_sizes,
-    Variadic<Stream_Size>:$result_sizes,
+    Variadic<Schedule_Size>:$resource_operand_sizes,
+    Variadic<Schedule_Size>:$result_sizes,
     OptionalAttr<Util_TiedOpStorageAttr>:$tied_operands,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$results
   );
 
@@ -2105,10 +2105,10 @@ def Stream_AsyncConcurrentOp : Stream_Op<"async.concurrent", [
 // Explicit command ops
 //===----------------------------------------------------------------------===//
 
-def Stream_CmdFlushOp : Stream_Op<"cmd.flush", [
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
-  Stream_SubviewEffectOp,
+def Schedule_CmdFlushOp : Schedule_Op<"cmd.flush", [
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
+  Schedule_SubviewEffectOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{flushes a subview of a resource}];
@@ -2119,11 +2119,11 @@ def Stream_CmdFlushOp : Stream_Op<"cmd.flush", [
   }];
 
   let arguments = (ins
-    Stream_AnyResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Size:$target_length,
-    OptionalAttr<Stream_AffinityAttr>:$source_affinity
+    Schedule_AnyResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Size:$target_length,
+    OptionalAttr<Schedule_AffinityAttr>:$source_affinity
   );
   let results = (outs);
 
@@ -2144,10 +2144,10 @@ def Stream_CmdFlushOp : Stream_Op<"cmd.flush", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdInvalidateOp : Stream_Op<"cmd.invalidate", [
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
-  Stream_SubviewEffectOp,
+def Schedule_CmdInvalidateOp : Schedule_Op<"cmd.invalidate", [
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
+  Schedule_SubviewEffectOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{invalidates a subview of a resource}];
@@ -2158,11 +2158,11 @@ def Stream_CmdInvalidateOp : Stream_Op<"cmd.invalidate", [
   }];
 
   let arguments = (ins
-    Stream_AnyResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Size:$target_length,
-    OptionalAttr<Stream_AffinityAttr>:$source_affinity
+    Schedule_AnyResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Size:$target_length,
+    OptionalAttr<Schedule_AffinityAttr>:$source_affinity
   );
   let results = (outs);
 
@@ -2183,10 +2183,10 @@ def Stream_CmdInvalidateOp : Stream_Op<"cmd.invalidate", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdDiscardOp : Stream_Op<"cmd.discard", [
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
-  Stream_SubviewEffectOp,
+def Schedule_CmdDiscardOp : Schedule_Op<"cmd.discard", [
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
+  Schedule_SubviewEffectOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{discards a subview of a resource}];
@@ -2197,10 +2197,10 @@ def Stream_CmdDiscardOp : Stream_Op<"cmd.discard", [
   }];
 
   let arguments = (ins
-    Stream_AnyResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Size:$target_length
+    Schedule_AnyResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Size:$target_length
   );
   let results = (outs);
 
@@ -2220,10 +2220,10 @@ def Stream_CmdDiscardOp : Stream_Op<"cmd.discard", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdFillOp : Stream_Op<"cmd.fill", [
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
-  Stream_SubviewEffectOp,
+def Schedule_CmdFillOp : Schedule_Op<"cmd.fill", [
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
+  Schedule_SubviewEffectOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{fills a subview of a stream resource with a value}];
@@ -2233,11 +2233,11 @@ def Stream_CmdFillOp : Stream_Op<"cmd.fill", [
   }];
 
   let arguments = (ins
-    Stream_AnyStreamResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Size:$target_length,
-    Stream_FillPatternType:$value
+    Schedule_AnyScheduleResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Size:$target_length,
+    Schedule_FillPatternType:$value
   );
   let results = (outs);
 
@@ -2259,10 +2259,10 @@ def Stream_CmdFillOp : Stream_Op<"cmd.fill", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdCopyOp : Stream_Op<"cmd.copy", [
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
-  Stream_SubviewEffectOp,
+def Schedule_CmdCopyOp : Schedule_Op<"cmd.copy", [
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
+  Schedule_SubviewEffectOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{copies a subview of a stream resource to another}];
@@ -2273,13 +2273,13 @@ def Stream_CmdCopyOp : Stream_Op<"cmd.copy", [
   }];
 
   let arguments = (ins
-    Stream_AnyResource:$source,
-    Stream_Size:$source_size,
-    Stream_Offset:$source_offset,
-    Stream_AnyResource:$target,
-    Stream_Size:$target_size,
-    Stream_Offset:$target_offset,
-    Stream_Size:$length
+    Schedule_AnyResource:$source,
+    Schedule_Size:$source_size,
+    Schedule_Offset:$source_offset,
+    Schedule_AnyResource:$target,
+    Schedule_Size:$target_size,
+    Schedule_Offset:$target_offset,
+    Schedule_Size:$length
   );
   let results = (outs);
 
@@ -2304,12 +2304,12 @@ def Stream_CmdCopyOp : Stream_Op<"cmd.copy", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdDispatchOp : Stream_Op<"cmd.dispatch", [
+def Schedule_CmdDispatchOp : Schedule_Op<"cmd.dispatch", [
   AttrSizedOperandSegments,
   DeclareOpInterfaceMethods<SymbolUserOpInterface>,
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
-  Stream_SubviewEffectOp,
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
+  Schedule_SubviewEffectOp,
   Util_SizeAwareOp,
 ]> {
   let summary = [{dispatches a parallelized grid of work}];
@@ -2322,12 +2322,12 @@ def Stream_CmdDispatchOp : Stream_Op<"cmd.dispatch", [
   let arguments = (ins
     Variadic<Index>:$workload,
     SymbolRefAttr:$entry_point,
-    Variadic<Stream_PrimitiveType>:$uniform_operands,
-    Variadic<Stream_AnyStreamResource>:$resources,
-    Variadic<Stream_Size>:$resource_sizes,
-    Variadic<Stream_Offset>:$resource_offsets,
-    Variadic<Stream_Size>:$resource_lengths,
-    Stream_ResourceAccessArrayAttr:$resource_accesses
+    Variadic<Schedule_PrimitiveType>:$uniform_operands,
+    Variadic<Schedule_AnyScheduleResource>:$resources,
+    Variadic<Schedule_Size>:$resource_sizes,
+    Variadic<Schedule_Offset>:$resource_offsets,
+    Variadic<Schedule_Size>:$resource_lengths,
+    Schedule_ResourceAccessArrayAttr:$resource_accesses
   );
   let results = (outs);
 
@@ -2361,16 +2361,16 @@ def Stream_CmdDispatchOp : Stream_Op<"cmd.dispatch", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdExecuteOp : Stream_Op<"cmd.execute", [
+def Schedule_CmdExecuteOp : Schedule_Op<"cmd.execute", [
   AttrSizedOperandSegments,
   RecursiveSideEffects,
   DeclareOpInterfaceMethods<RegionBranchOpInterface, [
     "getSuccessorEntryOperands",
   ]>,
-  SingleBlockImplicitTerminator<"IREE::Stream::YieldOp">,
-  Stream_AffinityOp,
-  Stream_CmdPhaseOp,
-  Stream_TimelineOp,
+  SingleBlockImplicitTerminator<"KLW::Schedule::YieldOp">,
+  Schedule_AffinityOp,
+  Schedule_CmdPhaseOp,
+  Schedule_TimelineOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_ClosureOpInterface>,
 ]> {
@@ -2388,15 +2388,15 @@ def Stream_CmdExecuteOp : Stream_Op<"cmd.execute", [
 
   let arguments = (ins
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$resource_operands,
-    Variadic<Stream_Size>:$resource_operand_sizes,
-    Optional<Stream_Timepoint>:$await_timepoint,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Variadic<Schedule_Size>:$resource_operand_sizes,
+    Optional<Schedule_Timepoint>:$await_timepoint,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let regions = (region AnyRegion:$body);
@@ -2438,17 +2438,17 @@ def Stream_CmdExecuteOp : Stream_Op<"cmd.execute", [
 }
 
 // TODO(benvanik): stream.cmd.serial for serialized execution.
-def Stream_CmdSerialOp : Stream_Op<"cmd.serial", [
+def Schedule_CmdSerialOp : Schedule_Op<"cmd.serial", [
   ParentOneOf<[
-    "IREE::Stream::CmdExecuteOp",
-    "IREE::Stream::CmdSerialOp",
-    "IREE::Stream::CmdConcurrentOp",
+    "KLW::Schedule::CmdExecuteOp",
+    "KLW::Schedule::CmdSerialOp",
+    "KLW::Schedule::CmdConcurrentOp",
   ]>,
   RecursiveSideEffects,
   DeclareOpInterfaceMethods<RegionBranchOpInterface>,
-  SingleBlockImplicitTerminator<"IREE::Stream::YieldOp">,
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
+  SingleBlockImplicitTerminator<"KLW::Schedule::YieldOp">,
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
 ]> {
   let summary = [{executes all ops serially (in-order)}];
   let description = [{
@@ -2504,17 +2504,17 @@ def Stream_CmdSerialOp : Stream_Op<"cmd.serial", [
   let hasCanonicalizer = 1;
 }
 
-def Stream_CmdConcurrentOp : Stream_Op<"cmd.concurrent", [
+def Schedule_CmdConcurrentOp : Schedule_Op<"cmd.concurrent", [
   ParentOneOf<[
-    "IREE::Stream::CmdExecuteOp",
-    "IREE::Stream::CmdSerialOp",
-    "IREE::Stream::CmdConcurrentOp",
+    "KLW::Schedule::CmdExecuteOp",
+    "KLW::Schedule::CmdSerialOp",
+    "KLW::Schedule::CmdConcurrentOp",
   ]>,
   RecursiveSideEffects,
   DeclareOpInterfaceMethods<RegionBranchOpInterface>,
-  SingleBlockImplicitTerminator<"IREE::Stream::YieldOp">,
-  Stream_CmdPhaseOp,
-  Stream_StreamableOp,
+  SingleBlockImplicitTerminator<"KLW::Schedule::YieldOp">,
+  Schedule_CmdPhaseOp,
+  Schedule_ScheduleableOp,
 ]> {
   let summary = [{executes all ops concurrently}];
   let description = [{
@@ -2570,9 +2570,9 @@ def Stream_CmdConcurrentOp : Stream_Op<"cmd.concurrent", [
 // Synchronization ops
 //===----------------------------------------------------------------------===//
 
-def Stream_TimepointImmediateOp : Stream_PureOp<"timepoint.immediate", [
+def Schedule_TimepointImmediateOp : Schedule_PureOp<"timepoint.immediate", [
   ConstantLike,
-  Stream_TimelineOp,
+  Schedule_TimelineOp,
 ]> {
   let summary = [{results an immediately-available timepoint}];
   let description = [{
@@ -2584,7 +2584,7 @@ def Stream_TimepointImmediateOp : Stream_PureOp<"timepoint.immediate", [
 
   let arguments = (ins);
   let results = (outs
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let assemblyFormat = [{
@@ -2599,8 +2599,8 @@ def Stream_TimepointImmediateOp : Stream_PureOp<"timepoint.immediate", [
   let hasFolder = 1;
 }
 
-def Stream_TimepointImportOp : Stream_PureOp<"timepoint.import", [
-  Stream_AffinityOp,
+def Schedule_TimepointImportOp : Schedule_PureOp<"timepoint.import", [
+  Schedule_AffinityOp,
 ]> {
   let summary = [{imports a timepoint from an external dialect type}];
   let description = [{
@@ -2612,10 +2612,10 @@ def Stream_TimepointImportOp : Stream_PureOp<"timepoint.import", [
 
   let arguments = (ins
     Variadic<AnyType>:$operands,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let assemblyFormat = [{
@@ -2627,8 +2627,8 @@ def Stream_TimepointImportOp : Stream_PureOp<"timepoint.import", [
   }];
 }
 
-def Stream_TimepointExportOp : Stream_PureOp<"timepoint.export", [
-  Stream_AffinityOp,
+def Schedule_TimepointExportOp : Schedule_PureOp<"timepoint.export", [
+  Schedule_AffinityOp,
 ]> {
   let summary = [{exports a timepoint to an external dialect type}];
   let description = [{
@@ -2639,8 +2639,8 @@ def Stream_TimepointExportOp : Stream_PureOp<"timepoint.export", [
   }];
 
   let arguments = (ins
-    Stream_Timepoint:$await_timepoint,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Schedule_Timepoint:$await_timepoint,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     Variadic<AnyType>:$results
@@ -2657,8 +2657,8 @@ def Stream_TimepointExportOp : Stream_PureOp<"timepoint.export", [
   let hasFolder = 1;
 }
 
-def Stream_TimepointJoinOp : Stream_PureOp<"timepoint.join", [
-  Stream_TimelineOp,
+def Schedule_TimepointJoinOp : Schedule_PureOp<"timepoint.join", [
+  Schedule_TimelineOp,
 ]> {
   let summary = [{joins one or more timepoints into the max of all of them}];
   let description = [{
@@ -2667,10 +2667,10 @@ def Stream_TimepointJoinOp : Stream_PureOp<"timepoint.join", [
   }];
 
   let arguments = (ins
-    Variadic<Stream_Timepoint>:$await_timepoints
+    Variadic<Schedule_Timepoint>:$await_timepoints
   );
   let results = (outs
-    Stream_Timepoint:$result_timepoint
+    Schedule_Timepoint:$result_timepoint
   );
 
   let assemblyFormat = [{
@@ -2684,10 +2684,10 @@ def Stream_TimepointJoinOp : Stream_PureOp<"timepoint.join", [
   let hasFolder = 1;
 }
 
-def Stream_TimepointAwaitOp : Stream_PureOp<"timepoint.await", [
+def Schedule_TimepointAwaitOp : Schedule_PureOp<"timepoint.await", [
   AttrSizedOperandSegments,
-  Stream_AffinityOp,
-  Stream_TimelineOp,
+  Schedule_AffinityOp,
+  Schedule_TimelineOp,
   Util_SizeAwareOp,
   DeclareOpInterfaceMethods<Util_TiedOpInterface, [
     "getTiedResultOperandIndex",
@@ -2706,17 +2706,17 @@ def Stream_TimepointAwaitOp : Stream_PureOp<"timepoint.await", [
 
   let arguments = (ins
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$resource_operands,
-    Variadic<Stream_Size>:$resource_operand_sizes,
-    Stream_Timepoint:$await_timepoint,
-    OptionalAttr<Stream_AffinityAttr>:$affinity
+    Variadic<Schedule_Size>:$resource_operand_sizes,
+    Schedule_Timepoint:$await_timepoint,
+    OptionalAttr<Schedule_AffinityAttr>:$affinity
   );
   let results = (outs
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$results
   );
 
@@ -2760,9 +2760,9 @@ def Stream_TimepointAwaitOp : Stream_PureOp<"timepoint.await", [
 // Executables
 //===----------------------------------------------------------------------===//
 
-def Stream_ExecutableOp : Stream_Op<"executable", [
+def Schedule_ExecutableOp : Schedule_Op<"executable", [
   IsolatedFromAbove,
-  SingleBlockImplicitTerminator<"IREE::Stream::ExecutableEndOp">,
+  SingleBlockImplicitTerminator<"KLW::Schedule::ExecutableEndOp">,
   NativeOpTrait<"SymbolTable">,
   Symbol,
 ]> {
@@ -2802,16 +2802,16 @@ def Stream_ExecutableOp : Stream_Op<"executable", [
   let hasVerifier = 1;
 }
 
-def Stream_ExecutableEndOp : Stream_Op<"executable.end", [
-  HasParent<"IREE::Stream::ExecutableOp">,
+def Schedule_ExecutableEndOp : Schedule_Op<"executable.end", [
+  HasParent<"KLW::Schedule::ExecutableOp">,
   Terminator,
 ]> {
   let summary = [{terminator pseudo-op for the executable op}];
   let assemblyFormat = "attr-dict";
 }
 
-def Stream_ExecutableExportOp : Stream_Op<"executable.export", [
-  HasParent<"IREE::Stream::ExecutableOp">,
+def Schedule_ExecutableExportOp : Schedule_Op<"executable.export", [
+  HasParent<"KLW::Schedule::ExecutableOp">,
   Symbol,
   IsolatedFromAbove,
 ]> {
@@ -2854,7 +2854,7 @@ def Stream_ExecutableExportOp : Stream_Op<"executable.export", [
   let hasVerifier = 1;
 }
 
-def Stream_BindingSubspanOp : Stream_PureOp<"binding.subspan", [
+def Schedule_BindingSubspanOp : Schedule_PureOp<"binding.subspan", [
     Util_ShapeAwareOp,
   ]> {
   let summary = [{returns an alias to a subspan of interface binding data}];
@@ -2864,9 +2864,9 @@ def Stream_BindingSubspanOp : Stream_PureOp<"binding.subspan", [
   }];
 
   let arguments = (ins
-    Stream_AnyBinding:$binding,
-    Stream_Offset:$byte_offset,
-    Stream_ShapeDynamicDims:$dynamic_dims
+    Schedule_AnyBinding:$binding,
+    Schedule_Offset:$byte_offset,
+    Schedule_ShapeDynamicDims:$dynamic_dims
   );
   let results = (outs
     AnyType:$result
@@ -2889,9 +2889,9 @@ def Stream_BindingSubspanOp : Stream_PureOp<"binding.subspan", [
 // Misc
 //===----------------------------------------------------------------------===//
 
-def Stream_ReturnOp : Stream_Op<"return", [
+def Schedule_ReturnOp : Schedule_Op<"return", [
   ParentOneOf<[
-    "IREE::Stream::ExecutableExportOp",
+    "KLW::Schedule::ExecutableExportOp",
   ]>,
   NoSideEffect,
   DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface, [
@@ -2915,13 +2915,13 @@ def Stream_ReturnOp : Stream_Op<"return", [
   }];
 }
 
-def Stream_YieldOp : Stream_Op<"yield", [
+def Schedule_YieldOp : Schedule_Op<"yield", [
   ParentOneOf<[
-    "IREE::Stream::AsyncExecuteOp",
-    "IREE::Stream::AsyncConcurrentOp",
-    "IREE::Stream::CmdExecuteOp",
-    "IREE::Stream::CmdSerialOp",
-    "IREE::Stream::CmdConcurrentOp",
+    "KLW::Schedule::AsyncExecuteOp",
+    "KLW::Schedule::AsyncConcurrentOp",
+    "KLW::Schedule::CmdExecuteOp",
+    "KLW::Schedule::CmdSerialOp",
+    "KLW::Schedule::CmdConcurrentOp",
   ]>,
   NoSideEffect,
   DeclareOpInterfaceMethods<RegionBranchTerminatorOpInterface, [
@@ -2940,8 +2940,8 @@ def Stream_YieldOp : Stream_Op<"yield", [
 
   let arguments = (ins
     Variadic<AnyTypeOf<[
-      Stream_AnyStreamResource,
-      Stream_StagingResource,
+      Schedule_AnyScheduleResource,
+      Schedule_StagingResource,
     ]>>:$resource_operands,
     Variadic<Index>:$resource_operand_sizes
   );
@@ -2968,4 +2968,4 @@ def Stream_YieldOp : Stream_Op<"yield", [
   }];
 }
 
-#endif  // IREE_DIALECT_STREAM_OPS
+#endif  // KLW_DIALECT_SCHEDULE_OPS

@@ -1,12 +1,12 @@
-// Copyright 2021 The IREE Authors
+// Copyright 2021 The KLW Authors
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "iree/compiler/Dialect/Stream/IR/StreamOps.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.h"
 
-#include "iree/compiler/Dialect/Stream/Builtins/Builtins.h"
+#include "klw/compiler/Dialect/Schedule/Builtins/Builtins.h"
 #include "iree/compiler/Dialect/Util/IR/ClosureOpUtils.h"
 #include "iree/compiler/Dialect/Util/IR/UtilOps.h"
 #include "iree/compiler/Dialect/Util/IR/UtilTypes.h"
@@ -30,9 +30,9 @@
 #include "mlir/Transforms/RegionUtils.h"
 
 namespace mlir {
-namespace iree_compiler {
-namespace IREE {
-namespace Stream {
+namespace klw_compiler {
+namespace KLW {
+namespace Schedule {
 
 //===----------------------------------------------------------------------===//
 // Op utilities used within the stream dialect
@@ -52,7 +52,7 @@ static void createArgs(ArrayRef<OpAsmParser::UnresolvedOperand> operands,
 
 // Verifies that a dispatch |op|'s |workload| matches that of the |exportOp|.
 static LogicalResult verifyDispatchWorkload(
-    Operation *op, IREE::Stream::ExecutableExportOp exportOp,
+    Operation *op, KLW::Schedule::ExecutableExportOp exportOp,
     ValueRange workload) {
   // If the target has a workgroup count computation function we can verify that
   // the workload here matches what is expected.
@@ -122,7 +122,7 @@ static LogicalResult verifyOpValueSizes(Operation *op, ValueRange values,
                                         ValueRange sizes) {
   unsigned requiredCount = 0;
   for (auto value : values) {
-    if (value.getType().isa<IREE::Util::SizeAwareTypeInterface>()) {
+    if (value.getType().isa<KLW::Util::SizeAwareTypeInterface>()) {
       ++requiredCount;
     }
   }
@@ -146,7 +146,7 @@ static LogicalResult verifyAllResourcesCaptured(Region &region) {
       availableResources.insert(result);
     }
     for (auto operand : op.getOperands()) {
-      if (!operand.getType().isa<IREE::Stream::ResourceType>()) continue;
+      if (!operand.getType().isa<KLW::Schedule::ResourceType>()) continue;
       if (!availableResources.contains(operand)) {
         return op.emitOpError() << "used resource not listed in explicit "
                                    "captures (or produced internally)";
@@ -164,7 +164,7 @@ static LogicalResult verifyEscapingResources(Region &region,
                                              ResultRange results,
                                              ValueRange resultSizes) {
   // Ensure yielded resources match the signature.
-  for (auto yieldOp : region.getOps<IREE::Stream::YieldOp>()) {
+  for (auto yieldOp : region.getOps<KLW::Schedule::YieldOp>()) {
     if (results.size() != yieldOp.getResourceOperands().size()) {
       return yieldOp.emitOpError()
              << "yield result count mismatch with parent op";
@@ -191,8 +191,8 @@ static LogicalResult verifyEscapingResources(Region &region,
 
 // Computes the value access bits starting from |rootValue|.
 // Traverses the IR graph along tied ops but does not handle branches.
-static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
-  IREE::Util::ValueAccess access;
+static KLW::Util::ValueAccess computeValueAccess(Value rootValue) {
+  KLW::Util::ValueAccess access;
   DenseSet<Value> processedValues;
   SmallVector<Value> worklist;
   auto enqueueValue = [&](Value value) {
@@ -209,7 +209,7 @@ static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
     if (auto definingOp = value.getDefiningOp()) {
       // Value is produced within the region and thus written.
       access.isWrite = true;
-      if (auto tiedOp = dyn_cast<IREE::Util::TiedOpInterface>(definingOp)) {
+      if (auto tiedOp = dyn_cast<KLW::Util::TiedOpInterface>(definingOp)) {
         access.isRead = true;
         auto operand = tiedOp.getTiedResultOperand(value);
         if (operand) {
@@ -219,7 +219,7 @@ static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
           // Value contents are fully produced by this op.
           access.isDiscard = true;
         }
-      } else if (isa<IREE::Stream::SubviewEffectOpInterface>(definingOp)) {
+      } else if (isa<KLW::Schedule::SubviewEffectOpInterface>(definingOp)) {
         // TODO(benvanik): actually query; for now assume *.
         access.isRead = true;
         access.isWrite = true;
@@ -233,10 +233,10 @@ static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
     for (auto user : value.getUsers()) {
       // Used by an op.
       access.isRead = true;
-      if (auto tiedOp = dyn_cast<IREE::Util::TiedOpInterface>(user)) {
+      if (auto tiedOp = dyn_cast<KLW::Util::TiedOpInterface>(user)) {
         auto tiedIndices = tiedOp.getTiedResultOperandIndices();
         for (int64_t tiedIndex : tiedIndices) {
-          if (tiedIndex == IREE::Util::TiedOpInterface::kUntiedIndex) continue;
+          if (tiedIndex == KLW::Util::TiedOpInterface::kUntiedIndex) continue;
           auto operand = user->getOperand(tiedIndex);
           if (operand == value) {
             // Tied operand.
@@ -245,7 +245,7 @@ static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
             enqueueValue(operand);
           }
         }
-      } else if (isa<IREE::Stream::SubviewEffectOpInterface>(user)) {
+      } else if (isa<KLW::Schedule::SubviewEffectOpInterface>(user)) {
         // TODO(benvanik): actually query; for now assume *.
         access.isRead = true;
         access.isWrite = true;
@@ -255,10 +255,10 @@ static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
   return access;
 }
 
-static void eraseStreamRegionResults(Region &region,
+static void eraseScheduleRegionResults(Region &region,
                                      ArrayRef<unsigned> excludedResultIndices) {
   for (auto &block : region.getBlocks()) {
-    auto yieldOp = dyn_cast<IREE::Stream::YieldOp>(block.getTerminator());
+    auto yieldOp = dyn_cast<KLW::Schedule::YieldOp>(block.getTerminator());
     if (!yieldOp) continue;
     llvm::SmallVector<Value, 4> newOperands;
     for (auto i : llvm::reverse(excludedResultIndices)) {
@@ -347,7 +347,7 @@ static void printResourceRegion(OpAsmPrinter &p, Operation *op,
         p << arg;
         p << ": ";
         p << arg.getType();
-        if (arg.getType().template isa<IREE::Util::SizeAwareTypeInterface>()) {
+        if (arg.getType().template isa<KLW::Util::SizeAwareTypeInterface>()) {
           p << "{" << operandSizes.front() << "}";
           operandSizes = operandSizes.drop_front(1);
         }
@@ -408,7 +408,7 @@ static ParseResult parseExplicitResourceRegion(
   }
   // HACK: I can't figure out how to make this work with the default parsing -
   // it doesn't call this like it should.
-  IREE::Stream::CmdExecuteOp::ensureTerminator(
+  KLW::Schedule::CmdExecuteOp::ensureTerminator(
       body, parser.getBuilder(),
       parser.getEncodedSourceLoc(parser.getCurrentLocation()));
   return success();
@@ -428,7 +428,7 @@ static void printExplicitResourceRegion(OpAsmPrinter &p, Operation *op,
         p << arg;
         p << ": ";
         p << arg.getType();
-        if (arg.getType().template isa<IREE::Util::SizeAwareTypeInterface>()) {
+        if (arg.getType().template isa<KLW::Util::SizeAwareTypeInterface>()) {
           p << "{" << operandSizes.front() << "}";
           operandSizes = operandSizes.drop_front(1);
         }
@@ -571,7 +571,7 @@ static ParseResult parseWorkgroupCountRegion(OpAsmParser &parser,
   }
 
   // Verify the return types match.
-  for (auto returnOp : body.getOps<IREE::Stream::ReturnOp>()) {
+  for (auto returnOp : body.getOps<KLW::Schedule::ReturnOp>()) {
     for (auto it : llvm::zip(returnTypes, returnOp.getOperandTypes())) {
       if (std::get<0>(it) != std::get<1>(it)) {
         return returnOp.emitOpError()
@@ -753,7 +753,7 @@ bool ResourceSubviewOp::isMetadata() { return true; }
 Value ResourceSubviewOp::getViewSource() { return getSource(); }
 
 Value ResourceSubviewOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getSource());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getSource());
 }
 
 ::llvm::Optional<unsigned> ResourceSubviewOp::getTiedResultOperandIndex(
@@ -766,18 +766,18 @@ SmallVector<int64_t, 4> ResourceSubviewOp::getTiedResultOperandIndices() {
 }
 
 // static
-IREE::Stream::ResourceSubviewOp ResourceSubviewOp::findSubviewOp(Value value) {
+KLW::Schedule::ResourceSubviewOp ResourceSubviewOp::findSubviewOp(Value value) {
   while (value) {
     auto *definingOp = value.getDefiningOp();
     if (!definingOp) {
       // Defined as a block argument - stop walk.
       break;
     } else if (auto subviewOp =
-                   dyn_cast<IREE::Stream::ResourceSubviewOp>(definingOp)) {
+                   dyn_cast<KLW::Schedule::ResourceSubviewOp>(definingOp)) {
       // Found!
       return subviewOp;
     } else if (auto tiedOp =
-                   dyn_cast<IREE::Util::TiedOpInterface>(definingOp)) {
+                   dyn_cast<KLW::Util::TiedOpInterface>(definingOp)) {
       // Continue walking up through the tied operand.
       value = tiedOp.getTiedResultOperand(value);
     } else {
@@ -802,7 +802,7 @@ LogicalResult TensorImportOp::verify() {
 }
 
 Value TensorImportOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getSource());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getSource());
 }
 
 ::llvm::Optional<unsigned> TensorImportOp::getTiedResultOperandIndex(
@@ -829,7 +829,7 @@ LogicalResult TensorExportOp::verify() {
 }
 
 Value TensorExportOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getSource());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getSource());
 }
 
 ::llvm::Optional<unsigned> TensorExportOp::getTiedResultOperandIndex(
@@ -966,7 +966,7 @@ LogicalResult TensorUpdateOp::verify() {
 }
 
 Value TensorUpdateOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> TensorUpdateOp::getTiedResultOperandIndex(
@@ -993,7 +993,7 @@ LogicalResult TensorFillOp::verify() {
 }
 
 Value TensorFillOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> TensorFillOp::getTiedResultOperandIndex(
@@ -1042,7 +1042,7 @@ LogicalResult TensorStoreOp::verify() {
 }
 
 Value TensorStoreOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> TensorStoreOp::getTiedResultOperandIndex(
@@ -1058,7 +1058,7 @@ SmallVector<int64_t, 4> TensorStoreOp::getTiedResultOperandIndices() {
 // stream.builtin.* utilities
 //===----------------------------------------------------------------------===//
 
-// Merges a builtin module from iree/compiler/Dialect/Stream/Builtins/*.mlir
+// Merges a builtin module from klw/compiler/Dialect/Schedule/Builtins/*.mlir
 // into the user module; this allows for host functions and multiple
 // executables.
 //
@@ -1068,9 +1068,9 @@ static LogicalResult mergeBuiltinModuleSource(Location loc, StringRef fileName,
                                               Operation *targetOp,
                                               OpBuilder &targetBuilder) {
   // Find the file in the embedded data.
-  const iree_file_toc_t *toc = iree_compiler_Stream_Builtins_create();
-  const iree_file_toc_t *file = nullptr;
-  for (size_t i = 0; i < iree_compiler_Stream_Builtins_size(); ++i) {
+  const klw_file_toc_t *toc = klw_compiler_Schedule_Builtins_create();
+  const klw_file_toc_t *file = nullptr;
+  for (size_t i = 0; i < klw_compiler_Schedule_Builtins_size(); ++i) {
     if (fileName == toc[i].name) {
       file = &toc[i];
       break;
@@ -1121,7 +1121,7 @@ LogicalResult BuiltinSplatI64Op::convertBuiltinOp(OpBuilder &builder) {
   SmallVector<Type> resultTypes{
       getResult().getType(),
   };
-  auto dispatchOp = builder.create<IREE::Stream::AsyncDispatchOp>(
+  auto dispatchOp = builder.create<KLW::Schedule::AsyncDispatchOp>(
       getLoc(), resultTypes, workload,
       SymbolRefAttr::get(
           builder.getStringAttr("__builtin_splat_i64"),
@@ -1145,7 +1145,7 @@ LogicalResult BuiltinFillI64Op::verify() {
 }
 
 Value BuiltinFillI64Op::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> BuiltinFillI64Op::getTiedResultOperandIndex(
@@ -1186,7 +1186,7 @@ LogicalResult BuiltinFillI64Op::convertBuiltinOp(OpBuilder &builder) {
   SmallVector<Type> resultTypes{
       getResult().getType(),
   };
-  auto dispatchOp = builder.create<IREE::Stream::AsyncDispatchOp>(
+  auto dispatchOp = builder.create<KLW::Schedule::AsyncDispatchOp>(
       getLoc(), resultTypes, workload,
       SymbolRefAttr::get(
           builder.getStringAttr("__builtin_fill_i64"),
@@ -1280,7 +1280,7 @@ LogicalResult AsyncFillOp::verify() {
 }
 
 Value AsyncFillOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncFillOp::getTiedResultOperandIndex(
@@ -1308,7 +1308,7 @@ LogicalResult AsyncUpdateOp::verify() {
 bool AsyncUpdateOp::isMetadata() { return true; }
 
 Value AsyncUpdateOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncUpdateOp::getTiedResultOperandIndex(
@@ -1341,7 +1341,7 @@ LogicalResult AsyncCopyOp::verify() {
 }
 
 Value AsyncCopyOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncCopyOp::getTiedResultOperandIndex(
@@ -1391,7 +1391,7 @@ LogicalResult AsyncStoreOp::verify() {
 }
 
 Value AsyncStoreOp::getTiedResult(unsigned resultIndex) {
-  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncStoreOp::getTiedResultOperandIndex(
@@ -1421,7 +1421,7 @@ LogicalResult AsyncDispatchOp::verifySymbolUses(
     SymbolTableCollection &symbolTable) {
   Operation *op = getOperation();
   auto exportOp =
-      symbolTable.lookupNearestSymbolFrom<IREE::Stream::ExecutableExportOp>(
+      symbolTable.lookupNearestSymbolFrom<KLW::Schedule::ExecutableExportOp>(
           op, getEntryPoint());
   if (!exportOp) {
     // TODO(benvanik): there are a lot of tests that are assuming this is not
@@ -1458,14 +1458,14 @@ void AsyncExecuteOp::build(OpBuilder &builder, OperationState &state,
                            ArrayRef<int64_t> tiedOperands,
                            ArrayRef<NamedAttribute> attributes) {
   state.addTypes(resultTypes);
-  state.addTypes(IREE::Stream::TimepointType::get(builder.getContext()));
+  state.addTypes(KLW::Schedule::TimepointType::get(builder.getContext()));
   state.addOperands(operands);
   state.addOperands(operandSizes);
   state.addOperands(resultSizes);
   if (awaitTimepoint) state.addOperands(awaitTimepoint);
   state.addAttributes(attributes);
-  state.attributes.erase(IREE::Util::TiedOpInterface::getStorageAttrName());
-  state.addAttribute(IREE::Util::TiedOpInterface::getStorageAttrName(),
+  state.attributes.erase(KLW::Util::TiedOpInterface::getStorageAttrName());
+  state.addAttribute(KLW::Util::TiedOpInterface::getStorageAttrName(),
                      builder.getIndexArrayAttr(tiedOperands));
   state.attributes.erase(getOperandSegmentSizeAttr());
   state.addAttribute(getOperandSegmentSizeAttr(),
@@ -1526,18 +1526,18 @@ Operation::result_range AsyncExecuteOp::getClosureResults() {
 
 bool AsyncExecuteOp::canClosureContainOp(Operation *op) { return false; }
 
-IREE::Util::ValueAccess AsyncExecuteOp::getOperandAccess(
+KLW::Util::ValueAccess AsyncExecuteOp::getOperandAccess(
     unsigned operandIndex) {
   auto arg = getBody().getArgument(operandIndex);
   return computeValueAccess(arg);
 }
 
-IREE::Util::ValueAccess AsyncExecuteOp::getResultAccess(unsigned resultIndex) {
+KLW::Util::ValueAccess AsyncExecuteOp::getResultAccess(unsigned resultIndex) {
   auto yieldOp = cast<YieldOp>(getBody().getBlocks().front().getTerminator());
   return computeValueAccess(yieldOp.getOperand(resultIndex));
 }
 
-IREE::Util::ClosureOpInterface
+KLW::Util::ClosureOpInterface
 AsyncExecuteOp::cloneReplacementExcludingOperandsAndResults(
     ArrayRef<unsigned> excludedOperandIndices,
     ArrayRef<unsigned> excludedResultIndices, PatternRewriter &rewriter) {
@@ -1546,13 +1546,13 @@ AsyncExecuteOp::cloneReplacementExcludingOperandsAndResults(
   auto newResultSizes = llvm::to_vector<4>(getResultSizes());
   auto newOperandsValues = llvm::to_vector<4>(getResourceOperands());
   auto newOperandSizes = llvm::to_vector<4>(getResourceOperandSizes());
-  IREE::Util::excludeClosureOperandsAndResults(
+  KLW::Util::excludeClosureOperandsAndResults(
       newOperandsValues, newOperandSizes, excludedOperandIndices,
       newResultTypes, newResultSizes, excludedResultIndices);
 
   auto newTiedOperandIndices =
       llvm::to_vector<4>(getTiedResultOperandIndices());
-  IREE::Util::excludeTiedOperandAndResultIndices(
+  KLW::Util::excludeTiedOperandAndResultIndices(
       excludedOperandIndices, excludedResultIndices, newTiedOperandIndices);
   assert(getTiedOperandsIndexAndLength().first == 0 &&
          "operands must be the first ODS group");
@@ -1563,7 +1563,7 @@ AsyncExecuteOp::cloneReplacementExcludingOperandsAndResults(
       getOperation()->getAttrs());
   auto &newBody = newOp.getClosureBodyRegion();
   newBody.takeBody(getClosureBodyRegion());
-  eraseStreamRegionResults(newBody, excludedResultIndices);
+  eraseScheduleRegionResults(newBody, excludedResultIndices);
   newBody.front().eraseArguments(excludedOperandIndices);
   return newOp;
 }
@@ -1582,8 +1582,8 @@ void AsyncConcurrentOp::build(OpBuilder &builder, OperationState &state,
   state.addOperands(operandSizes);
   state.addOperands(resultSizes);
   state.addAttributes(attributes);
-  state.attributes.erase(IREE::Util::TiedOpInterface::getStorageAttrName());
-  state.addAttribute(IREE::Util::TiedOpInterface::getStorageAttrName(),
+  state.attributes.erase(KLW::Util::TiedOpInterface::getStorageAttrName());
+  state.addAttribute(KLW::Util::TiedOpInterface::getStorageAttrName(),
                      builder.getIndexArrayAttr(tiedOperands));
   state.attributes.erase(getOperandSegmentSizeAttr());
   state.addAttribute(getOperandSegmentSizeAttr(),
@@ -1639,19 +1639,19 @@ Operation::result_range AsyncConcurrentOp::getClosureResults() {
 
 bool AsyncConcurrentOp::canClosureContainOp(Operation *op) { return false; }
 
-IREE::Util::ValueAccess AsyncConcurrentOp::getOperandAccess(
+KLW::Util::ValueAccess AsyncConcurrentOp::getOperandAccess(
     unsigned operandIndex) {
   auto arg = getBody().getArgument(operandIndex);
   return computeValueAccess(arg);
 }
 
-IREE::Util::ValueAccess AsyncConcurrentOp::getResultAccess(
+KLW::Util::ValueAccess AsyncConcurrentOp::getResultAccess(
     unsigned resultIndex) {
   auto yieldOp = cast<YieldOp>(getBody().getBlocks().front().getTerminator());
   return computeValueAccess(yieldOp.getOperand(resultIndex));
 }
 
-IREE::Util::ClosureOpInterface
+KLW::Util::ClosureOpInterface
 AsyncConcurrentOp::cloneReplacementExcludingOperandsAndResults(
     ArrayRef<unsigned> excludedOperandIndices,
     ArrayRef<unsigned> excludedResultIndices, PatternRewriter &rewriter) {
@@ -1659,13 +1659,13 @@ AsyncConcurrentOp::cloneReplacementExcludingOperandsAndResults(
   auto newResultSizes = llvm::to_vector<4>(getResultSizes());
   auto newOperandsValues = llvm::to_vector<4>(getResourceOperands());
   auto newOperandSizes = llvm::to_vector<4>(getResourceOperandSizes());
-  IREE::Util::excludeClosureOperandsAndResults(
+  KLW::Util::excludeClosureOperandsAndResults(
       newOperandsValues, newOperandSizes, excludedOperandIndices,
       newResultTypes, newResultSizes, excludedResultIndices);
 
   auto newTiedOperandIndices =
       llvm::to_vector<4>(getTiedResultOperandIndices());
-  IREE::Util::excludeTiedOperandAndResultIndices(
+  KLW::Util::excludeTiedOperandAndResultIndices(
       excludedOperandIndices, excludedResultIndices, newTiedOperandIndices);
   assert(getTiedOperandsIndexAndLength().first == 0 &&
          "operands must be the first ODS group");
@@ -1675,7 +1675,7 @@ AsyncConcurrentOp::cloneReplacementExcludingOperandsAndResults(
       newOperandSizes, newTiedOperandIndices, getOperation()->getAttrs());
   auto &newBody = newOp.getClosureBodyRegion();
   newBody.takeBody(getClosureBodyRegion());
-  eraseStreamRegionResults(newBody, excludedResultIndices);
+  eraseScheduleRegionResults(newBody, excludedResultIndices);
   newBody.front().eraseArguments(excludedOperandIndices);
   return newOp;
 }
@@ -1762,7 +1762,7 @@ LogicalResult CmdDispatchOp::verifySymbolUses(
     SymbolTableCollection &symbolTable) {
   Operation *op = getOperation();
   auto exportOp =
-      symbolTable.lookupNearestSymbolFrom<IREE::Stream::ExecutableExportOp>(
+      symbolTable.lookupNearestSymbolFrom<KLW::Schedule::ExecutableExportOp>(
           op, getEntryPoint());
   if (!exportOp) {
     // TODO(benvanik): there are a lot of tests that are assuming this is not
@@ -1812,17 +1812,17 @@ static ParseResult parseDispatchResources(
                                   resourceSizes.back()))) {
       return failure();
     }
-    IREE::Stream::ResourceAccessBitfield accessBits =
-        IREE::Stream::ResourceAccessBitfield::None;
+    KLW::Schedule::ResourceAccessBitfield accessBits =
+        KLW::Schedule::ResourceAccessBitfield::None;
     if (accessStr == "ro") {
-      accessBits = IREE::Stream::ResourceAccessBitfield::Read;
+      accessBits = KLW::Schedule::ResourceAccessBitfield::Read;
     } else if (accessStr == "wo") {
-      accessBits = IREE::Stream::ResourceAccessBitfield::Write;
+      accessBits = KLW::Schedule::ResourceAccessBitfield::Write;
     } else if (accessStr == "rw") {
-      accessBits = IREE::Stream::ResourceAccessBitfield::Read |
-                   IREE::Stream::ResourceAccessBitfield::Write;
+      accessBits = KLW::Schedule::ResourceAccessBitfield::Read |
+                   KLW::Schedule::ResourceAccessBitfield::Write;
     }
-    accessAttrs.push_back(IREE::Stream::ResourceAccessBitfieldAttr::get(
+    accessAttrs.push_back(KLW::Schedule::ResourceAccessBitfieldAttr::get(
         parser.getBuilder().getContext(), accessBits));
   } while (succeeded(parser.parseOptionalComma()));
   resourceAccesses = parser.getBuilder().getArrayAttr(accessAttrs);
@@ -1843,20 +1843,20 @@ static void printDispatchResources(OpAsmPrinter &p, Operation *op,
     auto resourceOffset = resourceOffsets[i];
     auto resourceLength = resourceLengths[i];
     auto resourceAccess = resourceAccesses[i]
-                              .cast<IREE::Stream::ResourceAccessBitfieldAttr>()
+                              .cast<KLW::Schedule::ResourceAccessBitfieldAttr>()
                               .getValue();
     p.printNewline();
     p << "  ";
     if (bitEnumContains(resourceAccess,
-                        IREE::Stream::ResourceAccessBitfield::Read) &&
+                        KLW::Schedule::ResourceAccessBitfield::Read) &&
         bitEnumContains(resourceAccess,
-                        IREE::Stream::ResourceAccessBitfield::Write)) {
+                        KLW::Schedule::ResourceAccessBitfield::Write)) {
       p << "rw";
     } else if (bitEnumContains(resourceAccess,
-                               IREE::Stream::ResourceAccessBitfield::Read)) {
+                               KLW::Schedule::ResourceAccessBitfield::Read)) {
       p << "ro";
     } else if (bitEnumContains(resourceAccess,
-                               IREE::Stream::ResourceAccessBitfield::Write)) {
+                               KLW::Schedule::ResourceAccessBitfield::Write)) {
       p << "wo";
     }
     p << ' ';
@@ -1878,13 +1878,13 @@ SmallVector<unsigned> CmdDispatchOp::makeOperandToArgMap(
     mlir::func::FuncOp funcOp) {
   unsigned operandCount = llvm::count_if(
       funcOp.getArgumentTypes(),
-      [](Type type) { return !type.isa<IREE::Stream::BindingType>(); });
+      [](Type type) { return !type.isa<KLW::Schedule::BindingType>(); });
   SmallVector<unsigned> map(operandCount);
   unsigned operandIdx = 0;
   for (auto it : llvm::enumerate(funcOp.getArgumentTypes())) {
     unsigned argIdx = it.index();
     auto argType = it.value();
-    if (!argType.isa<IREE::Stream::BindingType>()) {
+    if (!argType.isa<KLW::Schedule::BindingType>()) {
       map[operandIdx++] = argIdx;
     }
   }
@@ -1896,13 +1896,13 @@ SmallVector<unsigned> CmdDispatchOp::makeResourceToArgMap(
     mlir::func::FuncOp funcOp) {
   unsigned operandCount = llvm::count_if(
       funcOp.getArgumentTypes(),
-      [](Type type) { return type.isa<IREE::Stream::BindingType>(); });
+      [](Type type) { return type.isa<KLW::Schedule::BindingType>(); });
   SmallVector<unsigned> map(operandCount);
   unsigned operandIdx = 0;
   for (auto it : llvm::enumerate(funcOp.getArgumentTypes())) {
     unsigned argIdx = it.index();
     auto argType = it.value();
-    if (argType.isa<IREE::Stream::BindingType>()) {
+    if (argType.isa<KLW::Schedule::BindingType>()) {
       map[operandIdx++] = argIdx;
     }
   }
@@ -1917,7 +1917,7 @@ void CmdExecuteOp::build(OpBuilder &builder, OperationState &state,
                          Value awaitTimepoint, ValueRange operands,
                          ValueRange operandSizes,
                          ArrayRef<NamedAttribute> attributes) {
-  state.addTypes(IREE::Stream::TimepointType::get(builder.getContext()));
+  state.addTypes(KLW::Schedule::TimepointType::get(builder.getContext()));
   state.addOperands(operands);
   state.addOperands(operandSizes);
   if (awaitTimepoint) state.addOperands(awaitTimepoint);
@@ -1937,12 +1937,12 @@ void CmdExecuteOp::build(OpBuilder &builder, OperationState &state,
 static LogicalResult verifyCmdOp(Operation *op) {
   // TODO(benvanik): add a trait that lets us avoid this switch.
   if (!TypeSwitch<Operation *, bool>(op)
-           .Case<IREE::Stream::CmdFlushOp, IREE::Stream::CmdInvalidateOp,
-                 IREE::Stream::CmdDiscardOp, IREE::Stream::CmdFillOp,
-                 IREE::Stream::CmdCopyOp, IREE::Stream::CmdDispatchOp,
-                 IREE::Stream::CmdSerialOp, IREE::Stream::CmdConcurrentOp>(
+           .Case<KLW::Schedule::CmdFlushOp, KLW::Schedule::CmdInvalidateOp,
+                 KLW::Schedule::CmdDiscardOp, KLW::Schedule::CmdFillOp,
+                 KLW::Schedule::CmdCopyOp, KLW::Schedule::CmdDispatchOp,
+                 KLW::Schedule::CmdSerialOp, KLW::Schedule::CmdConcurrentOp>(
                [](auto op) { return true; })
-           .Case<IREE::Stream::YieldOp>([](auto op) { return true; })
+           .Case<KLW::Schedule::YieldOp>([](auto op) { return true; })
            .Default(false)) {
     return op->emitOpError()
            << "explicit execution regions must only contain explicit ops";
@@ -1993,16 +1993,16 @@ Operation::result_range CmdExecuteOp::getClosureResults() {
 
 bool CmdExecuteOp::canClosureContainOp(Operation *op) { return false; }
 
-IREE::Util::ValueAccess CmdExecuteOp::getOperandAccess(unsigned operandIndex) {
+KLW::Util::ValueAccess CmdExecuteOp::getOperandAccess(unsigned operandIndex) {
   auto arg = getBody().getArgument(operandIndex);
   return computeValueAccess(arg);
 }
 
-IREE::Util::ValueAccess CmdExecuteOp::getResultAccess(unsigned resultIndex) {
-  return IREE::Util::ValueAccess::None();
+KLW::Util::ValueAccess CmdExecuteOp::getResultAccess(unsigned resultIndex) {
+  return KLW::Util::ValueAccess::None();
 }
 
-IREE::Util::ClosureOpInterface
+KLW::Util::ClosureOpInterface
 CmdExecuteOp::cloneReplacementExcludingOperandsAndResults(
     ArrayRef<unsigned> excludedOperandIndices,
     ArrayRef<unsigned> excludedResultIndices, PatternRewriter &rewriter) {
@@ -2010,7 +2010,7 @@ CmdExecuteOp::cloneReplacementExcludingOperandsAndResults(
   SmallVector<Value, 4> newResultSizes;
   auto newOperandsValues = llvm::to_vector<4>(getResourceOperands());
   auto newOperandSizes = llvm::to_vector<4>(getResourceOperandSizes());
-  IREE::Util::excludeClosureOperandsAndResults(
+  KLW::Util::excludeClosureOperandsAndResults(
       newOperandsValues, newOperandSizes, excludedOperandIndices,
       newResultTypes, newResultSizes, excludedResultIndices);
 
@@ -2159,7 +2159,7 @@ LogicalResult ExecutableExportOp::verify() {
   // Workgroup count region is optional.
   if (!getWorkgroupCount().empty()) {
     // Verify the return ops all provide XYZ values.
-    for (auto returnOp : getWorkgroupCount().getOps<IREE::Stream::ReturnOp>()) {
+    for (auto returnOp : getWorkgroupCount().getOps<KLW::Schedule::ReturnOp>()) {
       if (returnOp.getNumOperands() != 3 ||
           !llvm::all_of(returnOp.getOperandTypes(),
                         [](Type type) { return type.isIndex(); })) {
@@ -2173,7 +2173,7 @@ LogicalResult ExecutableExportOp::verify() {
 
 ::mlir::func::FuncOp ExecutableExportOp::lookupFunctionRef() {
   auto executableOp =
-      this->getOperation()->getParentOfType<IREE::Stream::ExecutableOp>();
+      this->getOperation()->getParentOfType<KLW::Schedule::ExecutableOp>();
   if (!executableOp) return {};
   return executableOp.getInnerModule().lookupSymbol<::mlir::func::FuncOp>(
       getFunctionRef());
@@ -2212,9 +2212,9 @@ MutableOperandRange YieldOp::getMutableSuccessorOperands(
   return getResourceOperandsMutable();
 }
 
-}  // namespace Stream
-}  // namespace IREE
-}  // namespace iree_compiler
+}  // namespace Schedule
+}  // namespace KLW
+}  // namespace klw_compiler
 }  // namespace mlir
 
 //===----------------------------------------------------------------------===//
@@ -2222,4 +2222,4 @@ MutableOperandRange YieldOp::getMutableSuccessorOperands(
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
-#include "iree/compiler/Dialect/Stream/IR/StreamOps.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.cpp.inc"  // IWYU pragma: keep

@@ -1,4 +1,4 @@
-// Copyright 2021 The IREE Authors
+// Copyright 2021 The KLW Authors
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +7,8 @@
 #include <algorithm>
 #include <numeric>
 
-#include "iree/compiler/Dialect/Stream/IR/StreamDialect.h"
-#include "iree/compiler/Dialect/Stream/IR/StreamOps.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleDialect.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.h"
 #include "iree/compiler/Dialect/Util/IR/ClosureOpUtils.h"
 #include "iree/compiler/Dialect/Util/IR/UtilTypes.h"
 #include "llvm/ADT/MapVector.h"
@@ -33,9 +33,9 @@
 #include "mlir/Support/LogicalResult.h"
 
 namespace mlir {
-namespace iree_compiler {
-namespace IREE {
-namespace Stream {
+namespace klw_compiler {
+namespace KLW {
+namespace Schedule {
 
 //===----------------------------------------------------------------------===//
 // Utilities shared across patterns
@@ -47,10 +47,10 @@ namespace Stream {
 //  stream.async.concurrent ... {
 //    stream.yield
 //  }
-static Optional<IREE::Stream::YieldOp> getYieldIfOnlyOp(Block &block) {
+static Optional<KLW::Schedule::YieldOp> getYieldIfOnlyOp(Block &block) {
   if (block.empty()) return llvm::None;
   if (&block.front() != &block.back()) return llvm::None;
-  auto yieldOp = dyn_cast<IREE::Stream::YieldOp>(block.back());
+  auto yieldOp = dyn_cast<KLW::Schedule::YieldOp>(block.back());
   if (yieldOp) return yieldOp;
   return llvm::None;
 }
@@ -138,13 +138,13 @@ struct ElideUnusedOp : public OpRewritePattern<Op> {
 // Materialize copy-on-write (🐄) ops where required for |rootValue|.
 // Only valid in tensor/async ops - don't use with stream.cmd.*.
 static bool materializeCOW(Location loc, Value rootValue, OpBuilder &builder) {
-  auto valueType = rootValue.getType().dyn_cast<IREE::Stream::ResourceType>();
+  auto valueType = rootValue.getType().dyn_cast<KLW::Schedule::ResourceType>();
   if (!valueType) return false;
 
   // If our rootValue is a constant then we need to ensure that we aren't
   // tied to a constant operand. If we are we need to clone to a
   // non-constant value.
-  bool forceClone = valueType.getLifetime() == IREE::Stream::Lifetime::Constant;
+  bool forceClone = valueType.getLifetime() == KLW::Schedule::Lifetime::Constant;
 
   // Identify if we need to insert a copy-on-write clone.
   // We do this per use as a single consuming op may use the result of this
@@ -158,8 +158,8 @@ static bool materializeCOW(Location loc, Value rootValue, OpBuilder &builder) {
   SmallVector<TiedUse> tiedUses;
   unsigned untiedUses = 0;
   for (auto &use : rootValue.getUses()) {
-    if (isa<IREE::Stream::TimepointAwaitOp>(use.getOwner())) continue;
-    auto tiedOp = dyn_cast<IREE::Util::TiedOpInterface>(use.getOwner());
+    if (isa<KLW::Schedule::TimepointAwaitOp>(use.getOwner())) continue;
+    auto tiedOp = dyn_cast<KLW::Util::TiedOpInterface>(use.getOwner());
     bool isTied = tiedOp && tiedOp.isOperandTied(use.getOperandNumber());
     if (isTied) {
       tiedUses.push_back({use.getOwner(), use.getOperandNumber(), rootValue});
@@ -177,8 +177,8 @@ static bool materializeCOW(Location loc, Value rootValue, OpBuilder &builder) {
 
   // Mixed/multiple tied uses. Clone for each tied use but leave the untied
   // ones referencing us.
-  IREE::Stream::AffinityAttr sourceAffinity;
-  if (auto affinityOp = dyn_cast_or_null<IREE::Stream::AffinityOpInterface>(
+  KLW::Schedule::AffinityAttr sourceAffinity;
+  if (auto affinityOp = dyn_cast_or_null<KLW::Schedule::AffinityOpInterface>(
           rootValue.getDefiningOp())) {
     sourceAffinity = affinityOp.getAffinity();
   }
@@ -190,17 +190,17 @@ static bool materializeCOW(Location loc, Value rootValue, OpBuilder &builder) {
 
     auto sizeAwareType =
         tiedUse.value.getType()
-            .template cast<IREE::Util::SizeAwareTypeInterface>();
+            .template cast<KLW::Util::SizeAwareTypeInterface>();
     auto targetSize =
         sizeAwareType.queryValueSize(cloneLoc, tiedUse.value, builder);
 
-    IREE::Stream::AffinityAttr targetAffinity;
+    KLW::Schedule::AffinityAttr targetAffinity;
     if (auto affinityOp =
-            dyn_cast<IREE::Stream::AffinityOpInterface>(tiedUse.user)) {
+            dyn_cast<KLW::Schedule::AffinityOpInterface>(tiedUse.user)) {
       targetAffinity = affinityOp.getAffinity();
     }
 
-    auto cloneOp = builder.create<IREE::Stream::AsyncCloneOp>(
+    auto cloneOp = builder.create<KLW::Schedule::AsyncCloneOp>(
         cloneLoc, tiedUse.value.getType(), tiedUse.value, targetSize,
         targetSize, targetAffinity ? targetAffinity : sourceAffinity);
     tiedUse.user->setOperand(tiedUse.operandIndex, cloneOp.getResult());
@@ -250,13 +250,13 @@ struct TieRegionResults : public OpRewritePattern<Op> {
     assert(op.getRegion().getBlocks().size() == 1 &&
            "only one stream block supported");
     bool didModify = false;
-    for (auto yieldOp : op.template getOps<IREE::Stream::YieldOp>()) {
+    for (auto yieldOp : op.template getOps<KLW::Schedule::YieldOp>()) {
       for (auto result : llvm::enumerate(yieldOp.getResourceOperands())) {
         if (op.getTiedResultOperandIndex(result.index()).has_value()) {
           continue;  // Already tied.
         }
         auto baseValue =
-            IREE::Util::TiedOpInterface::findTiedBaseValue(result.value());
+            KLW::Util::TiedOpInterface::findTiedBaseValue(result.value());
         if (auto blockArg = baseValue.template dyn_cast<BlockArgument>()) {
           unsigned operandIndex = blockArg.getArgNumber();
           op.setTiedResultOperandIndex(result.index(), operandIndex);
@@ -289,8 +289,8 @@ static Value joinAwaitTimepoints(Location loc, Value existingTimepoint,
     joinTimepoints.push_back(existingTimepoint);
   }
   llvm::append_range(joinTimepoints, newTimepoints);
-  return builder.create<IREE::Stream::TimepointJoinOp>(
-      loc, builder.getType<IREE::Stream::TimepointType>(), joinTimepoints);
+  return builder.create<KLW::Schedule::TimepointJoinOp>(
+      loc, builder.getType<KLW::Schedule::TimepointType>(), joinTimepoints);
 }
 
 // Elides waits that are known to be immediately resolved.
@@ -393,7 +393,7 @@ void ResourceDeallocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 OpFoldResult ResourceSizeOp::fold(ArrayRef<Attribute> operands) {
   auto sizeAwareType =
-      getOperand().getType().cast<IREE::Util::SizeAwareTypeInterface>();
+      getOperand().getType().cast<KLW::Util::SizeAwareTypeInterface>();
   Operation *op = this->getOperation();
   return sizeAwareType.findSizeValue(getOperand(), op->getBlock(),
                                      Block::iterator(op));
@@ -418,9 +418,9 @@ struct SelectResourceSizeOp : public OpRewritePattern<ResourceSizeOp> {
                                 PatternRewriter &rewriter) const override {
     auto selectOp = op.getOperand().getDefiningOp<mlir::arith::SelectOp>();
     if (!selectOp) return failure();
-    auto trueSize = rewriter.createOrFold<IREE::Stream::ResourceSizeOp>(
+    auto trueSize = rewriter.createOrFold<KLW::Schedule::ResourceSizeOp>(
         op.getLoc(), selectOp.getTrueValue(), op.getAffinityAttr());
-    auto falseSize = rewriter.createOrFold<IREE::Stream::ResourceSizeOp>(
+    auto falseSize = rewriter.createOrFold<KLW::Schedule::ResourceSizeOp>(
         op.getLoc(), selectOp.getFalseValue(), op.getAffinityAttr());
     rewriter.replaceOpWithNewOp<mlir::arith::SelectOp>(
         op, selectOp.getCondition(), trueSize, falseSize);
@@ -730,10 +730,10 @@ struct SinkSubviewAcrossSelectOps
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(mlir::arith::SelectOp op,
                                 PatternRewriter &rewriter) const override {
-    if (!op.getType().isa<IREE::Stream::ResourceType>()) return failure();
-    auto trueSubview = dyn_cast_or_null<IREE::Stream::ResourceSubviewOp>(
+    if (!op.getType().isa<KLW::Schedule::ResourceType>()) return failure();
+    auto trueSubview = dyn_cast_or_null<KLW::Schedule::ResourceSubviewOp>(
         op.getTrueValue().getDefiningOp());
-    auto falseSubview = dyn_cast_or_null<IREE::Stream::ResourceSubviewOp>(
+    auto falseSubview = dyn_cast_or_null<KLW::Schedule::ResourceSubviewOp>(
         op.getFalseValue().getDefiningOp());
     if (!trueSubview || !falseSubview) return failure();
     if (trueSubview.getSource() != falseSubview.getSource() ||
@@ -743,7 +743,7 @@ struct SinkSubviewAcrossSelectOps
     auto offsetSelectOp = rewriter.create<mlir::arith::SelectOp>(
         op.getLoc(), op.getCondition(), trueSubview.getSourceOffset(),
         falseSubview.getSourceOffset());
-    rewriter.replaceOpWithNewOp<IREE::Stream::ResourceSubviewOp>(
+    rewriter.replaceOpWithNewOp<KLW::Schedule::ResourceSubviewOp>(
         op, op.getResult().getType(), trueSubview.getSource(),
         trueSubview.getSourceSize(), offsetSelectOp.getResult(),
         trueSubview.getResultSize());
@@ -845,7 +845,7 @@ struct TensorConstantToEmpty : public OpRewritePattern<TensorConstantOp> {
     if (!anyZeroDims) return failure();
 
     // Definitely empty if here.
-    auto resultSize = rewriter.createOrFold<IREE::Stream::TensorSizeOfOp>(
+    auto resultSize = rewriter.createOrFold<KLW::Schedule::TensorSizeOfOp>(
         constantOp.getLoc(), rewriter.getIndexType(),
         TypeAttr::get(constantOp.getResultEncoding()),
         constantOp.getResultEncodingDims(), constantOp.getAffinityAttr());
@@ -871,8 +871,8 @@ struct TensorConstantToSplat : public OpRewritePattern<TensorConstantOp> {
     auto splatElementAttr = splatAttr.getSplatValue<TypedAttr>();
     auto splatValue = rewriter.create<arith::ConstantOp>(
         constantOp.getLoc(), splatElementAttr.getType(), splatElementAttr);
-    auto resultType = IREE::Stream::ResourceType::get(constantOp.getContext());
-    auto resultSize = rewriter.createOrFold<IREE::Stream::TensorSizeOfOp>(
+    auto resultType = KLW::Schedule::ResourceType::get(constantOp.getContext());
+    auto resultSize = rewriter.createOrFold<KLW::Schedule::TensorSizeOfOp>(
         constantOp.getLoc(), rewriter.getIndexType(),
         TypeAttr::get(constantOp.getResultEncoding()),
         constantOp.getResultEncodingDims(), constantOp.getAffinityAttr());
@@ -1063,7 +1063,7 @@ struct ElideUnneededTensorClones : public OpRewritePattern<TensorCloneOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(TensorCloneOp cloneOp,
                                 PatternRewriter &rewriter) const override {
-    if (!IREE::Util::TiedOpInterface::hasAnyTiedUses(cloneOp.getResult())) {
+    if (!KLW::Util::TiedOpInterface::hasAnyTiedUses(cloneOp.getResult())) {
       rewriter.replaceOp(cloneOp, cloneOp.getSource());
       return success();
     }
@@ -1205,7 +1205,7 @@ struct ConvertSplatConstantsIntoSplats
         value.dyn_cast<SplatElementsAttr>().getSplatValue<TypedAttr>();
     auto splatValue = rewriter.create<arith::ConstantOp>(
         constantOp.getLoc(), splatElementAttr.getType(), splatElementAttr);
-    rewriter.replaceOpWithNewOp<IREE::Stream::AsyncSplatOp>(
+    rewriter.replaceOpWithNewOp<KLW::Schedule::AsyncSplatOp>(
         constantOp, constantOp.getResult().getType(), splatValue,
         constantOp.getResultSize(), constantOp.getAffinityAttr());
     return success();
@@ -1321,7 +1321,7 @@ struct PropagateClonableOps : public OpRewritePattern<AsyncCloneOp> {
                                 PatternRewriter &rewriter) const override {
     if (cloneOp.use_empty()) return failure();
     auto sourceOp = cloneOp.getSource()
-                        .getDefiningOp<IREE::Stream::StreamableOpInterface>();
+                        .getDefiningOp<KLW::Schedule::ScheduleableOpInterface>();
     if (!sourceOp || !sourceOp.preferCloneToConsumers()) return failure();
     for (auto &use :
          llvm::make_early_inc_range(cloneOp.getResult().getUses())) {
@@ -1373,9 +1373,9 @@ struct PropagateSplatsThroughSlices : public OpRewritePattern<AsyncSliceOp> {
   LogicalResult matchAndRewrite(AsyncSliceOp sliceOp,
                                 PatternRewriter &rewriter) const override {
     auto splatOp =
-        sliceOp.getSource().getDefiningOp<IREE::Stream::AsyncSplatOp>();
+        sliceOp.getSource().getDefiningOp<KLW::Schedule::AsyncSplatOp>();
     if (!splatOp) return failure();
-    rewriter.replaceOpWithNewOp<IREE::Stream::AsyncSplatOp>(
+    rewriter.replaceOpWithNewOp<KLW::Schedule::AsyncSplatOp>(
         sliceOp, sliceOp.getResult().getType(), splatOp.getValue(),
         sliceOp.getResultSize(), sliceOp.getAffinityAttr());
     return success();
@@ -1411,7 +1411,7 @@ struct FlattenFullFillToSplat : public OpRewritePattern<AsyncFillOp> {
   LogicalResult matchAndRewrite(AsyncFillOp fillOp,
                                 PatternRewriter &rewriter) const override {
     if (fillOp.getTargetLength() == fillOp.getTargetSize()) {
-      rewriter.replaceOpWithNewOp<IREE::Stream::AsyncSplatOp>(
+      rewriter.replaceOpWithNewOp<KLW::Schedule::AsyncSplatOp>(
           fillOp, fillOp.getResult().getType(), fillOp.getValue(),
           fillOp.getTargetSize(), fillOp.getAffinityAttr());
       return success();
@@ -1456,9 +1456,9 @@ struct CombineSplatUpdateFromToFill : public OpRewritePattern<AsyncUpdateOp> {
   LogicalResult matchAndRewrite(AsyncUpdateOp updateOp,
                                 PatternRewriter &rewriter) const override {
     auto splatOp =
-        updateOp.getUpdate().getDefiningOp<IREE::Stream::AsyncSplatOp>();
+        updateOp.getUpdate().getDefiningOp<KLW::Schedule::AsyncSplatOp>();
     if (!splatOp) return failure();
-    rewriter.replaceOpWithNewOp<IREE::Stream::AsyncFillOp>(
+    rewriter.replaceOpWithNewOp<KLW::Schedule::AsyncFillOp>(
         updateOp, updateOp.getResult().getType(), updateOp.getTarget(),
         updateOp.getTargetSize(), updateOp.getTargetOffset(),
         updateOp.getTargetEnd(), updateOp.getUpdateSize(), splatOp.getValue(),
@@ -1489,14 +1489,14 @@ struct CombineSliceUpdateFromToCopy : public OpRewritePattern<AsyncUpdateOp> {
   LogicalResult matchAndRewrite(AsyncUpdateOp updateOp,
                                 PatternRewriter &rewriter) const override {
     auto sliceOp =
-        updateOp.getUpdate().getDefiningOp<IREE::Stream::AsyncSliceOp>();
+        updateOp.getUpdate().getDefiningOp<KLW::Schedule::AsyncSliceOp>();
     if (!sliceOp || sliceOp->getBlock() != updateOp->getBlock()) {
       // Source is not a slice or a slice from out-of-block. We don't want to
       // grow memory usage by sinking the slice here (we may slice into the
       // body of a for loop, for example).
       return failure();
     }
-    rewriter.replaceOpWithNewOp<IREE::Stream::AsyncCopyOp>(
+    rewriter.replaceOpWithNewOp<KLW::Schedule::AsyncCopyOp>(
         updateOp, updateOp.getResult().getType(), updateOp.getTarget(),
         updateOp.getTargetSize(), updateOp.getTargetOffset(),
         updateOp.getTargetEnd(), sliceOp.getSource(), sliceOp.getSourceSize(),
@@ -1539,7 +1539,7 @@ struct AsyncCopyFullSourceToUpdate : public OpRewritePattern<AsyncCopyOp> {
                                 PatternRewriter &rewriter) const override {
     if (copyOp.getSourceEnd() == copyOp.getSourceSize() &&
         copyOp.getLength() == copyOp.getSourceSize()) {
-      rewriter.replaceOpWithNewOp<IREE::Stream::AsyncUpdateOp>(
+      rewriter.replaceOpWithNewOp<KLW::Schedule::AsyncUpdateOp>(
           copyOp, copyOp.getResult().getType(), copyOp.getTarget(),
           copyOp.getTargetSize(), copyOp.getTargetOffset(),
           copyOp.getTargetEnd(), copyOp.getSource(), copyOp.getSourceSize(),
@@ -1649,7 +1649,7 @@ struct CloneCapturedAsyncExecuteSubviewOps
                                 PatternRewriter &rewriter) const override {
     struct SubviewCapture {
       unsigned operandIdx;
-      IREE::Stream::ResourceSubviewOp subviewOp;
+      KLW::Schedule::ResourceSubviewOp subviewOp;
     };
     SmallVector<SubviewCapture> captures;
     for (auto operand : llvm::enumerate(op.getResourceOperands())) {
@@ -1731,7 +1731,7 @@ void AsyncExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<ChainDependentAwaits<AsyncExecuteOp>>(context);
   results.insert<CloneCapturedAsyncExecuteSubviewOps>(context);
   results.insert<ElideNoOpAsyncExecuteOp>(context);
-  results.insert<IREE::Util::ClosureOptimizationPattern<AsyncExecuteOp>>(
+  results.insert<KLW::Util::ClosureOptimizationPattern<AsyncExecuteOp>>(
       context);
   results.insert<TieRegionResults<AsyncExecuteOp>>(context);
   results.insert<ElideUnusedOp<AsyncExecuteOp>>(context);
@@ -1743,7 +1743,7 @@ void AsyncExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 void AsyncConcurrentOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                     MLIRContext *context) {
-  results.insert<IREE::Util::ClosureOptimizationPattern<AsyncConcurrentOp>>(
+  results.insert<KLW::Util::ClosureOptimizationPattern<AsyncConcurrentOp>>(
       context);
   results.insert<TieRegionResults<AsyncConcurrentOp>>(context);
   results.insert<ElideUnusedOp<AsyncConcurrentOp>>(context);
@@ -2053,7 +2053,7 @@ struct CloneCapturedCmdExecuteSubviewOps
                                 PatternRewriter &rewriter) const override {
     struct SubviewCapture {
       unsigned operandIdx;
-      IREE::Stream::ResourceSubviewOp subviewOp;
+      KLW::Schedule::ResourceSubviewOp subviewOp;
     };
     SmallVector<SubviewCapture> captures;
     for (auto operand : llvm::enumerate(op.getResourceOperands())) {
@@ -2121,7 +2121,7 @@ void CmdExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<ChainDependentAwaits<CmdExecuteOp>>(context);
   results.insert<CloneCapturedCmdExecuteSubviewOps>(context);
   results.insert<ElideNoOpCmdExecuteOp>(context);
-  results.insert<IREE::Util::ClosureOptimizationPattern<CmdExecuteOp>>(context);
+  results.insert<KLW::Util::ClosureOptimizationPattern<CmdExecuteOp>>(context);
   results.insert<ElideUnusedOp<CmdExecuteOp>>(context);
 }
 
@@ -2170,7 +2170,7 @@ void CmdConcurrentOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 
 OpFoldResult TimepointImmediateOp::fold(ArrayRef<Attribute> operands) {
-  return IREE::Stream::TimepointAttr::get(getContext(), getResult().getType());
+  return KLW::Schedule::TimepointAttr::get(getContext(), getResult().getType());
 }
 
 //===----------------------------------------------------------------------===//
@@ -2198,7 +2198,7 @@ LogicalResult TimepointExportOp::fold(ArrayRef<Attribute> operands,
 OpFoldResult TimepointJoinOp::fold(ArrayRef<Attribute> operands) {
   if (llvm::all_of(operands, [](auto operand) { return operand != nullptr; })) {
     // Immediate wait; fold into immediate.
-    return IREE::Stream::TimepointAttr::get(getContext(),
+    return KLW::Schedule::TimepointAttr::get(getContext(),
                                             getResult().getType());
   } else if (getAwaitTimepoints().size() == 1) {
     // Join of a single timepoint => that timepoint.
@@ -2381,7 +2381,7 @@ struct SinkSubviewsAcrossAwaits : public OpRewritePattern<TimepointAwaitOp> {
     bool didChange = false;
     for (auto operand : llvm::enumerate(op.getResourceOperands())) {
       auto subviewOp =
-          operand.value().getDefiningOp<IREE::Stream::ResourceSubviewOp>();
+          operand.value().getDefiningOp<KLW::Schedule::ResourceSubviewOp>();
       if (!subviewOp) continue;
       didChange = true;
       unsigned operandIdx = static_cast<unsigned>(operand.index());
@@ -2389,7 +2389,7 @@ struct SinkSubviewsAcrossAwaits : public OpRewritePattern<TimepointAwaitOp> {
       // Create a new subview op matching the original on our result and swap
       // users to it.
       auto result = op.getResults()[operandIdx];
-      auto newOp = rewriter.create<IREE::Stream::ResourceSubviewOp>(
+      auto newOp = rewriter.create<KLW::Schedule::ResourceSubviewOp>(
           subviewOp.getLoc(), result, subviewOp.getSourceSize(),
           subviewOp.getSourceOffset(), subviewOp.getResultSize());
       result.replaceAllUsesExcept(newOp.getResult(), newOp);
@@ -2522,7 +2522,7 @@ struct FoldDuplicateAwaitResources : public OpRewritePattern<TimepointAwaitOp> {
     }
 
     // Create replacement op with deduped operands/results.
-    auto newOp = rewriter.create<IREE::Stream::TimepointAwaitOp>(
+    auto newOp = rewriter.create<KLW::Schedule::TimepointAwaitOp>(
         op.getLoc(), newOperands, newOperandSizes, op.getAwaitTimepoint());
     if (op.getAffinity().has_value()) {
       newOp.setAffinityAttr(op.getAffinityAttr());
@@ -2552,7 +2552,7 @@ void TimepointAwaitOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<ElideUnusedOp<TimepointAwaitOp>>(context);
 }
 
-}  // namespace Stream
-}  // namespace IREE
-}  // namespace iree_compiler
+}  // namespace Schedule
+}  // namespace KLW
+}  // namespace klw_compiler
 }  // namespace mlir

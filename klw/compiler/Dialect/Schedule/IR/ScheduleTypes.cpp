@@ -1,12 +1,12 @@
-// Copyright 2021 The IREE Authors
+// Copyright 2021 The KLW Authors
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "iree/compiler/Dialect/Stream/IR/StreamTypes.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypes.h"
 
-#include "iree/compiler/Dialect/Stream/IR/StreamOps.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/CommandLine.h"
@@ -14,19 +14,19 @@
 
 // clang-format off: must be included after all LLVM/MLIR headers.
 #define GET_ATTRDEF_CLASSES
-#include "iree/compiler/Dialect/Stream/IR/StreamAttrs.cpp.inc"  // IWYU pragma: keep
-#include "iree/compiler/Dialect/Stream/IR/StreamEnums.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleAttrs.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleEnums.cpp.inc"  // IWYU pragma: keep
 #define GET_TYPEDEF_CLASSES
-#include "iree/compiler/Dialect/Stream/IR/StreamTypes.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypes.cpp.inc"  // IWYU pragma: keep
 // clang-format on
 
 namespace mlir {
-namespace iree_compiler {
-namespace IREE {
-namespace Stream {
+namespace klw_compiler {
+namespace KLW {
+namespace Schedule {
 
 static llvm::cl::opt<Favor> partitioningFavor(
-    "iree-stream-partitioning-favor",
+    "klw-stream-partitioning-favor",
     llvm::cl::desc("Default stream partitioning favor configuration."),
     llvm::cl::init(Favor::MaxConcurrency),
     llvm::cl::values(
@@ -47,20 +47,20 @@ static llvm::cl::opt<Favor> partitioningFavor(
 // but may trip the limit when packing. For now if a program is on the edge
 // it'll result in runtime failures if the max sizes are smaller than INT_MAX.
 static llvm::cl::opt<uint64_t> clResourceMaxAllocationSize(
-    "iree-stream-resource-max-allocation-size",
+    "klw-stream-resource-max-allocation-size",
     llvm::cl::desc("Maximum size of an individual memory allocation."),
     llvm::cl::init(INT64_MAX));
 static llvm::cl::opt<uint64_t> clResourceMinOffsetAlignment(
-    "iree-stream-resource-min-offset-alignment",
+    "klw-stream-resource-min-offset-alignment",
     llvm::cl::desc("Minimum required alignment in bytes for resource offsets."),
     llvm::cl::init(64ull));
 static llvm::cl::opt<uint64_t> clResourceMaxRange(
-    "iree-stream-resource-max-range",
+    "klw-stream-resource-max-range",
     llvm::cl::desc("Maximum range of a resource binding; may be less than the "
                    "max allocation size."),
     llvm::cl::init(INT64_MAX));
 static llvm::cl::opt<unsigned> clResourceIndexBits(
-    "iree-stream-resource-index-bits",
+    "klw-stream-resource-index-bits",
     llvm::cl::desc("Bit width of indices used to reference resource offsets."),
     llvm::cl::init(32));
 
@@ -105,7 +105,7 @@ Attribute ResourceConfigAttr::parse(AsmParser &p, Type type) {
 }
 
 void ResourceConfigAttr::print(AsmPrinter &p) const {
-  auto &os = p.getStream();
+  auto &os = p.getSchedule();
   os << "<{";
   os << "max_allocation_size = " << getMaxAllocationSize() << ", ";
   os << "min_buffer_offset_alignment = " << getMinBufferOffsetAlignment()
@@ -271,7 +271,7 @@ PartitioningConfigAttr PartitioningConfigAttr::lookup(Operation *op) {
 Attribute PartitioningConfigAttr::replaceImmediateSubElements(
     ArrayRef<Attribute> replAttrs, ArrayRef<Type> replTypes) const {
   return PartitioningConfigAttr::get(
-      replAttrs[0].cast<IREE::Stream::FavorAttr>());
+      replAttrs[0].cast<KLW::Schedule::FavorAttr>());
 }
 
 //===----------------------------------------------------------------------===//
@@ -323,7 +323,7 @@ Type ResourceType::parse(AsmParser &p) {
 
 void ResourceType::print(AsmPrinter &p) const {
   p << "<";
-  printLifetime(getLifetime(), p.getStream());
+  printLifetime(getLifetime(), p.getSchedule());
   p << ">";
 }
 
@@ -338,7 +338,7 @@ bool ResourceType::isAccessStorageCompatible(Type accessType) const {
 
 Value ResourceType::inferSizeFromValue(Location loc, Value value,
                                        OpBuilder &builder) const {
-  return builder.createOrFold<IREE::Stream::ResourceSizeOp>(
+  return builder.createOrFold<KLW::Schedule::ResourceSizeOp>(
       loc, builder.getIndexType(), value);
 }
 
@@ -346,7 +346,7 @@ Value ResourceType::createSubrangeOp(Location loc, Value resource,
                                      Value resourceSize, Value subrangeOffset,
                                      Value subrangeLength,
                                      OpBuilder &builder) const {
-  return builder.create<IREE::Stream::ResourceSubviewOp>(
+  return builder.create<KLW::Schedule::ResourceSubviewOp>(
       loc, resource, resourceSize, subrangeOffset, subrangeLength);
 }
 
@@ -354,27 +354,27 @@ Value ResourceType::createSubrangeOp(Location loc, Value resource,
 // Dialect registration
 //===----------------------------------------------------------------------===//
 
-#include "iree/compiler/Dialect/Stream/IR/StreamOpInterfaces.cpp.inc"  // IWYU pragma: keep
-#include "iree/compiler/Dialect/Stream/IR/StreamTypeInterfaces.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOpInterfaces.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypeInterfaces.cpp.inc"  // IWYU pragma: keep
 
-void StreamDialect::registerAttributes() {
+void ScheduleDialect::registerAttributes() {
   // Register command line flags:
   (void)partitioningFavor;
 
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "iree/compiler/Dialect/Stream/IR/StreamAttrs.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleAttrs.cpp.inc"  // IWYU pragma: keep
       >();
 }
 
-void StreamDialect::registerTypes() {
+void ScheduleDialect::registerTypes() {
   addTypes<
 #define GET_TYPEDEF_LIST
-#include "iree/compiler/Dialect/Stream/IR/StreamTypes.cpp.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypes.cpp.inc"  // IWYU pragma: keep
       >();
 }
 
-}  // namespace Stream
-}  // namespace IREE
-}  // namespace iree_compiler
+}  // namespace Schedule
+}  // namespace KLW
+}  // namespace klw_compiler
 }  // namespace mlir

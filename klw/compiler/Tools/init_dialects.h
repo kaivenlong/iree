@@ -13,12 +13,14 @@
 #define KLW_COMPILER_TOOLS_INIT_DIALECTS_H_
 
 #include "iree/compiler/Tools/init_dialects.h"
+#include "klw/compiler/Tools/init_klw_dialects.h"
 
 namespace mlir {
 namespace klw_compiler {
 
 inline void registerAllDialects(DialectRegistry &registry) {
   mlir::iree_compiler::registerAllDialects(registry);
+  mlir::klw_compiler::registerKlwDialects(registry);
 }
 
 }  // namespace klw_compiler

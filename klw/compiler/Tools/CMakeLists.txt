@@ -73,10 +73,10 @@ iree_cc_library(
 
 iree_cc_library(
   NAME
-    init_iree_passes_and_dialects
+    init_klw_passes_and_dialects
   HDRS
-    "init_iree_dialects.h"
-    "init_iree_passes.h"
+    "init_klw_dialects.h"
+    #"init_iree_passes.h"
   DEPS
     IREEInputDialect
     IREELinalgExtDialect
@@ -85,6 +85,7 @@ iree_cc_library(
     IREELinalgTransformDialect
     IREELinalgTransformDialectPasses
     MLIRIR
+    iree::klw::compiler::Dialect::Schedule::IR
     iree::compiler::Bindings::Native::Transforms
     iree::compiler::Bindings::TFLite::Transforms
     iree::compiler::Codegen::Dialect::IREECodegenDialect
@@ -157,14 +158,10 @@ iree_cc_library(
     init_passes_and_dialects
   HDRS
     "init_dialects.h"
-    "init_passes.h"
+    #"init_passes.h"
   DEPS
-    ::init_compiler_modules
-    ::init_input_passes_and_dialects
-    ::init_iree_passes_and_dialects
-    ::init_mlir_passes_and_dialects
-    iree::compiler::Codegen::Codegen
-    iree::compiler::Dialect::HAL::Conversion::Passes
+    ::init_klw_passes_and_dialects
+    iree::compiler::Tools::init_passes_and_dialects
   PUBLIC
 )
 
@@ -210,6 +207,7 @@ iree_cc_library(
   SRCS
     "klw_compile_lib.cc"
   DEPS
+    ::init_passes_and_dialects
     iree::compiler::Tools::init_llvmir_translations
     iree::compiler::Tools::init_passes_and_dialects
     iree::compiler::Tools::init_targets

@@ -21,7 +21,7 @@ iree_c_embed_data(
   H_FILE_OUTPUT
     "Builtins.h"
   IDENTIFIER
-    "iree_compiler_Stream_Builtins"
+    "klw_compiler_Schedule_Builtins"
   FLATTEN
   PUBLIC
 )

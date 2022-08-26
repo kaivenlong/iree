@@ -1,13 +1,12 @@
-// Copyright 2021 The IREE Authors
+// Copyright 2021 The KLW Authors
 //
 // Licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "iree/compiler/Dialect/Stream/IR/StreamDialect.h"
-
-#include "iree/compiler/Dialect/Stream/IR/StreamOps.h"
-#include "iree/compiler/Dialect/Stream/IR/StreamTypes.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleDialect.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypes.h"
 #include "llvm/Support/SourceMgr.h"
 #include "mlir/Dialect/Arithmetic/IR/Arithmetic.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -20,14 +19,14 @@
 #include "mlir/Transforms/InliningUtils.h"
 
 namespace mlir {
-namespace iree_compiler {
-namespace IREE {
-namespace Stream {
+namespace klw_compiler {
+namespace KLW {
+namespace Schedule {
 
 namespace {
 
 // Used to control inlining behavior.
-struct StreamInlinerInterface : public DialectInlinerInterface {
+struct ScheduleInlinerInterface : public DialectInlinerInterface {
   using DialectInlinerInterface::DialectInlinerInterface;
 
   bool isLegalToInline(Operation *call, Operation *callable,
@@ -48,7 +47,7 @@ struct StreamInlinerInterface : public DialectInlinerInterface {
   }
 };
 
-struct StreamFolderInterface : public DialectFoldInterface {
+struct ScheduleFolderInterface : public DialectFoldInterface {
   using DialectFoldInterface::DialectFoldInterface;
 
   bool shouldMaterializeInto(Region *region) const override {
@@ -70,14 +69,14 @@ struct StripResourceConversionCastPattern
   LogicalResult matchAndRewrite(UnrealizedConversionCastOp castOp,
                                 PatternRewriter &rewriter) const override {
     auto result = castOp.getResult(0);
-    if (!result.getType().isa<IREE::Stream::ResourceType>()) return failure();
+    if (!result.getType().isa<KLW::Schedule::ResourceType>()) return failure();
     assert(castOp.getNumOperands() == 2 &&
            "expect resource, index -> resource");
     auto resourceValue = castOp.getOperand(0);
     auto sizeValue = castOp.getOperand(1);
     for (auto &use : llvm::make_early_inc_range(result.getUses())) {
       if (auto sizeOp =
-              dyn_cast<IREE::Stream::ResourceSizeOp>(use.getOwner())) {
+              dyn_cast<KLW::Schedule::ResourceSizeOp>(use.getOwner())) {
         sizeOp.getResult().replaceAllUsesWith(sizeValue);
         rewriter.eraseOp(sizeOp);
       } else {
@@ -91,24 +90,24 @@ struct StripResourceConversionCastPattern
 
 }  // namespace
 
-StreamDialect::StreamDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context, TypeID::get<StreamDialect>()) {
+ScheduleDialect::ScheduleDialect(MLIRContext *context)
+    : Dialect(getDialectNamespace(), context, TypeID::get<ScheduleDialect>()) {
   registerAttributes();
   registerTypes();
 
 #define GET_OP_LIST
   addOperations<
-#include "iree/compiler/Dialect/Stream/IR/StreamOps.cpp.inc"
+#include "schedule/compiler/Dialect/Schedule/IR/ScheduleOps.cpp.inc"
       >();
-  addInterfaces<StreamInlinerInterface, StreamFolderInterface>();
+  addInterfaces<ScheduleInlinerInterface, ScheduleFolderInterface>();
 }
 
-void StreamDialect::getCanonicalizationPatterns(
+void ScheduleDialect::getCanonicalizationPatterns(
     RewritePatternSet &results) const {
   results.insert<StripResourceConversionCastPattern>(getContext());
 }
 
-Operation *StreamDialect::materializeConstant(OpBuilder &builder,
+Operation *ScheduleDialect::materializeConstant(OpBuilder &builder,
                                               Attribute value, Type type,
                                               Location loc) {
   if (mlir::func::ConstantOp::isBuildableWith(value, type)) {
@@ -116,13 +115,13 @@ Operation *StreamDialect::materializeConstant(OpBuilder &builder,
         loc, type, value.cast<FlatSymbolRefAttr>());
   } else if (arith::ConstantOp::isBuildableWith(value, type)) {
     return builder.create<arith::ConstantOp>(loc, type, value);
-  } else if (value.isa<IREE::Stream::TimepointAttr>()) {
-    return builder.create<IREE::Stream::TimepointImmediateOp>(loc);
+  } else if (value.isa<KLW::Schedule::TimepointAttr>()) {
+    return builder.create<KLW::Schedule::TimepointImmediateOp>(loc);
   }
   return nullptr;
 }
 
-}  // namespace Stream
-}  // namespace IREE
-}  // namespace iree_compiler
+}  // namespace Schedule
+}  // namespace KLW
+}  // namespace klw_compiler
 }  // namespace mlir
