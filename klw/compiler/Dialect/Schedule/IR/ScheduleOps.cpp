@@ -122,7 +122,7 @@ static LogicalResult verifyOpValueSizes(Operation *op, ValueRange values,
                                         ValueRange sizes) {
   unsigned requiredCount = 0;
   for (auto value : values) {
-    if (value.getType().isa<KLW::Util::SizeAwareTypeInterface>()) {
+    if (value.getType().isa<IREE::Util::SizeAwareTypeInterface>()) {
       ++requiredCount;
     }
   }
@@ -191,8 +191,8 @@ static LogicalResult verifyEscapingResources(Region &region,
 
 // Computes the value access bits starting from |rootValue|.
 // Traverses the IR graph along tied ops but does not handle branches.
-static KLW::Util::ValueAccess computeValueAccess(Value rootValue) {
-  KLW::Util::ValueAccess access;
+static IREE::Util::ValueAccess computeValueAccess(Value rootValue) {
+  IREE::Util::ValueAccess access;
   DenseSet<Value> processedValues;
   SmallVector<Value> worklist;
   auto enqueueValue = [&](Value value) {
@@ -209,7 +209,7 @@ static KLW::Util::ValueAccess computeValueAccess(Value rootValue) {
     if (auto definingOp = value.getDefiningOp()) {
       // Value is produced within the region and thus written.
       access.isWrite = true;
-      if (auto tiedOp = dyn_cast<KLW::Util::TiedOpInterface>(definingOp)) {
+      if (auto tiedOp = dyn_cast<IREE::Util::TiedOpInterface>(definingOp)) {
         access.isRead = true;
         auto operand = tiedOp.getTiedResultOperand(value);
         if (operand) {
@@ -233,10 +233,10 @@ static KLW::Util::ValueAccess computeValueAccess(Value rootValue) {
     for (auto user : value.getUsers()) {
       // Used by an op.
       access.isRead = true;
-      if (auto tiedOp = dyn_cast<KLW::Util::TiedOpInterface>(user)) {
+      if (auto tiedOp = dyn_cast<IREE::Util::TiedOpInterface>(user)) {
         auto tiedIndices = tiedOp.getTiedResultOperandIndices();
         for (int64_t tiedIndex : tiedIndices) {
-          if (tiedIndex == KLW::Util::TiedOpInterface::kUntiedIndex) continue;
+          if (tiedIndex == IREE::Util::TiedOpInterface::kUntiedIndex) continue;
           auto operand = user->getOperand(tiedIndex);
           if (operand == value) {
             // Tied operand.
@@ -347,7 +347,7 @@ static void printResourceRegion(OpAsmPrinter &p, Operation *op,
         p << arg;
         p << ": ";
         p << arg.getType();
-        if (arg.getType().template isa<KLW::Util::SizeAwareTypeInterface>()) {
+        if (arg.getType().template isa<IREE::Util::SizeAwareTypeInterface>()) {
           p << "{" << operandSizes.front() << "}";
           operandSizes = operandSizes.drop_front(1);
         }
@@ -428,7 +428,7 @@ static void printExplicitResourceRegion(OpAsmPrinter &p, Operation *op,
         p << arg;
         p << ": ";
         p << arg.getType();
-        if (arg.getType().template isa<KLW::Util::SizeAwareTypeInterface>()) {
+        if (arg.getType().template isa<IREE::Util::SizeAwareTypeInterface>()) {
           p << "{" << operandSizes.front() << "}";
           operandSizes = operandSizes.drop_front(1);
         }
@@ -753,7 +753,7 @@ bool ResourceSubviewOp::isMetadata() { return true; }
 Value ResourceSubviewOp::getViewSource() { return getSource(); }
 
 Value ResourceSubviewOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getSource());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getSource());
 }
 
 ::llvm::Optional<unsigned> ResourceSubviewOp::getTiedResultOperandIndex(
@@ -777,7 +777,7 @@ KLW::Schedule::ResourceSubviewOp ResourceSubviewOp::findSubviewOp(Value value) {
       // Found!
       return subviewOp;
     } else if (auto tiedOp =
-                   dyn_cast<KLW::Util::TiedOpInterface>(definingOp)) {
+                   dyn_cast<IREE::Util::TiedOpInterface>(definingOp)) {
       // Continue walking up through the tied operand.
       value = tiedOp.getTiedResultOperand(value);
     } else {
@@ -802,7 +802,7 @@ LogicalResult TensorImportOp::verify() {
 }
 
 Value TensorImportOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getSource());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getSource());
 }
 
 ::llvm::Optional<unsigned> TensorImportOp::getTiedResultOperandIndex(
@@ -829,7 +829,7 @@ LogicalResult TensorExportOp::verify() {
 }
 
 Value TensorExportOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getSource());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getSource());
 }
 
 ::llvm::Optional<unsigned> TensorExportOp::getTiedResultOperandIndex(
@@ -966,7 +966,7 @@ LogicalResult TensorUpdateOp::verify() {
 }
 
 Value TensorUpdateOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> TensorUpdateOp::getTiedResultOperandIndex(
@@ -993,7 +993,7 @@ LogicalResult TensorFillOp::verify() {
 }
 
 Value TensorFillOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> TensorFillOp::getTiedResultOperandIndex(
@@ -1042,7 +1042,7 @@ LogicalResult TensorStoreOp::verify() {
 }
 
 Value TensorStoreOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> TensorStoreOp::getTiedResultOperandIndex(
@@ -1145,7 +1145,7 @@ LogicalResult BuiltinFillI64Op::verify() {
 }
 
 Value BuiltinFillI64Op::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> BuiltinFillI64Op::getTiedResultOperandIndex(
@@ -1280,7 +1280,7 @@ LogicalResult AsyncFillOp::verify() {
 }
 
 Value AsyncFillOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncFillOp::getTiedResultOperandIndex(
@@ -1308,7 +1308,7 @@ LogicalResult AsyncUpdateOp::verify() {
 bool AsyncUpdateOp::isMetadata() { return true; }
 
 Value AsyncUpdateOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncUpdateOp::getTiedResultOperandIndex(
@@ -1341,7 +1341,7 @@ LogicalResult AsyncCopyOp::verify() {
 }
 
 Value AsyncCopyOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncCopyOp::getTiedResultOperandIndex(
@@ -1391,7 +1391,7 @@ LogicalResult AsyncStoreOp::verify() {
 }
 
 Value AsyncStoreOp::getTiedResult(unsigned resultIndex) {
-  return KLW::Util::TiedOpInterface::findTiedBaseValue(getTarget());
+  return IREE::Util::TiedOpInterface::findTiedBaseValue(getTarget());
 }
 
 ::llvm::Optional<unsigned> AsyncStoreOp::getTiedResultOperandIndex(
@@ -1464,8 +1464,8 @@ void AsyncExecuteOp::build(OpBuilder &builder, OperationState &state,
   state.addOperands(resultSizes);
   if (awaitTimepoint) state.addOperands(awaitTimepoint);
   state.addAttributes(attributes);
-  state.attributes.erase(KLW::Util::TiedOpInterface::getStorageAttrName());
-  state.addAttribute(KLW::Util::TiedOpInterface::getStorageAttrName(),
+  state.attributes.erase(IREE::Util::TiedOpInterface::getStorageAttrName());
+  state.addAttribute(IREE::Util::TiedOpInterface::getStorageAttrName(),
                      builder.getIndexArrayAttr(tiedOperands));
   state.attributes.erase(getOperandSegmentSizeAttr());
   state.addAttribute(getOperandSegmentSizeAttr(),
@@ -1526,18 +1526,18 @@ Operation::result_range AsyncExecuteOp::getClosureResults() {
 
 bool AsyncExecuteOp::canClosureContainOp(Operation *op) { return false; }
 
-KLW::Util::ValueAccess AsyncExecuteOp::getOperandAccess(
+IREE::Util::ValueAccess AsyncExecuteOp::getOperandAccess(
     unsigned operandIndex) {
   auto arg = getBody().getArgument(operandIndex);
   return computeValueAccess(arg);
 }
 
-KLW::Util::ValueAccess AsyncExecuteOp::getResultAccess(unsigned resultIndex) {
+IREE::Util::ValueAccess AsyncExecuteOp::getResultAccess(unsigned resultIndex) {
   auto yieldOp = cast<YieldOp>(getBody().getBlocks().front().getTerminator());
   return computeValueAccess(yieldOp.getOperand(resultIndex));
 }
 
-KLW::Util::ClosureOpInterface
+IREE::Util::ClosureOpInterface
 AsyncExecuteOp::cloneReplacementExcludingOperandsAndResults(
     ArrayRef<unsigned> excludedOperandIndices,
     ArrayRef<unsigned> excludedResultIndices, PatternRewriter &rewriter) {
@@ -1546,13 +1546,13 @@ AsyncExecuteOp::cloneReplacementExcludingOperandsAndResults(
   auto newResultSizes = llvm::to_vector<4>(getResultSizes());
   auto newOperandsValues = llvm::to_vector<4>(getResourceOperands());
   auto newOperandSizes = llvm::to_vector<4>(getResourceOperandSizes());
-  KLW::Util::excludeClosureOperandsAndResults(
+  IREE::Util::excludeClosureOperandsAndResults(
       newOperandsValues, newOperandSizes, excludedOperandIndices,
       newResultTypes, newResultSizes, excludedResultIndices);
 
   auto newTiedOperandIndices =
       llvm::to_vector<4>(getTiedResultOperandIndices());
-  KLW::Util::excludeTiedOperandAndResultIndices(
+  IREE::Util::excludeTiedOperandAndResultIndices(
       excludedOperandIndices, excludedResultIndices, newTiedOperandIndices);
   assert(getTiedOperandsIndexAndLength().first == 0 &&
          "operands must be the first ODS group");
@@ -1582,8 +1582,8 @@ void AsyncConcurrentOp::build(OpBuilder &builder, OperationState &state,
   state.addOperands(operandSizes);
   state.addOperands(resultSizes);
   state.addAttributes(attributes);
-  state.attributes.erase(KLW::Util::TiedOpInterface::getStorageAttrName());
-  state.addAttribute(KLW::Util::TiedOpInterface::getStorageAttrName(),
+  state.attributes.erase(IREE::Util::TiedOpInterface::getStorageAttrName());
+  state.addAttribute(IREE::Util::TiedOpInterface::getStorageAttrName(),
                      builder.getIndexArrayAttr(tiedOperands));
   state.attributes.erase(getOperandSegmentSizeAttr());
   state.addAttribute(getOperandSegmentSizeAttr(),
@@ -1639,19 +1639,19 @@ Operation::result_range AsyncConcurrentOp::getClosureResults() {
 
 bool AsyncConcurrentOp::canClosureContainOp(Operation *op) { return false; }
 
-KLW::Util::ValueAccess AsyncConcurrentOp::getOperandAccess(
+IREE::Util::ValueAccess AsyncConcurrentOp::getOperandAccess(
     unsigned operandIndex) {
   auto arg = getBody().getArgument(operandIndex);
   return computeValueAccess(arg);
 }
 
-KLW::Util::ValueAccess AsyncConcurrentOp::getResultAccess(
+IREE::Util::ValueAccess AsyncConcurrentOp::getResultAccess(
     unsigned resultIndex) {
   auto yieldOp = cast<YieldOp>(getBody().getBlocks().front().getTerminator());
   return computeValueAccess(yieldOp.getOperand(resultIndex));
 }
 
-KLW::Util::ClosureOpInterface
+IREE::Util::ClosureOpInterface
 AsyncConcurrentOp::cloneReplacementExcludingOperandsAndResults(
     ArrayRef<unsigned> excludedOperandIndices,
     ArrayRef<unsigned> excludedResultIndices, PatternRewriter &rewriter) {
@@ -1659,13 +1659,13 @@ AsyncConcurrentOp::cloneReplacementExcludingOperandsAndResults(
   auto newResultSizes = llvm::to_vector<4>(getResultSizes());
   auto newOperandsValues = llvm::to_vector<4>(getResourceOperands());
   auto newOperandSizes = llvm::to_vector<4>(getResourceOperandSizes());
-  KLW::Util::excludeClosureOperandsAndResults(
+  IREE::Util::excludeClosureOperandsAndResults(
       newOperandsValues, newOperandSizes, excludedOperandIndices,
       newResultTypes, newResultSizes, excludedResultIndices);
 
   auto newTiedOperandIndices =
       llvm::to_vector<4>(getTiedResultOperandIndices());
-  KLW::Util::excludeTiedOperandAndResultIndices(
+  IREE::Util::excludeTiedOperandAndResultIndices(
       excludedOperandIndices, excludedResultIndices, newTiedOperandIndices);
   assert(getTiedOperandsIndexAndLength().first == 0 &&
          "operands must be the first ODS group");
@@ -1993,16 +1993,16 @@ Operation::result_range CmdExecuteOp::getClosureResults() {
 
 bool CmdExecuteOp::canClosureContainOp(Operation *op) { return false; }
 
-KLW::Util::ValueAccess CmdExecuteOp::getOperandAccess(unsigned operandIndex) {
+IREE::Util::ValueAccess CmdExecuteOp::getOperandAccess(unsigned operandIndex) {
   auto arg = getBody().getArgument(operandIndex);
   return computeValueAccess(arg);
 }
 
-KLW::Util::ValueAccess CmdExecuteOp::getResultAccess(unsigned resultIndex) {
-  return KLW::Util::ValueAccess::None();
+IREE::Util::ValueAccess CmdExecuteOp::getResultAccess(unsigned resultIndex) {
+  return IREE::Util::ValueAccess::None();
 }
 
-KLW::Util::ClosureOpInterface
+IREE::Util::ClosureOpInterface
 CmdExecuteOp::cloneReplacementExcludingOperandsAndResults(
     ArrayRef<unsigned> excludedOperandIndices,
     ArrayRef<unsigned> excludedResultIndices, PatternRewriter &rewriter) {
@@ -2010,7 +2010,7 @@ CmdExecuteOp::cloneReplacementExcludingOperandsAndResults(
   SmallVector<Value, 4> newResultSizes;
   auto newOperandsValues = llvm::to_vector<4>(getResourceOperands());
   auto newOperandSizes = llvm::to_vector<4>(getResourceOperandSizes());
-  KLW::Util::excludeClosureOperandsAndResults(
+  IREE::Util::excludeClosureOperandsAndResults(
       newOperandsValues, newOperandSizes, excludedOperandIndices,
       newResultTypes, newResultSizes, excludedResultIndices);
 
