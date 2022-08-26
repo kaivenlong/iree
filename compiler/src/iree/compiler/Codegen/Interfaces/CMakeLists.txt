@@ -29,6 +29,9 @@ iree_cc_library(
     iree::compiler::Codegen::LLVMCPU::TransformExtensions::LLVMCPUExtensions
     iree::compiler::Codegen::LLVMGPU::TransformExtensions::LLVMGPUExtensions
     iree::compiler::Dialect::Flow::TransformExtensions::FlowExtensions
+if(IREE_BUILD_KLW)
+    iree::klw::compiler::Dialect::Schedule::TransformExtensions::KLWGPUExtensions
+endif()
   PUBLIC
 )
 
