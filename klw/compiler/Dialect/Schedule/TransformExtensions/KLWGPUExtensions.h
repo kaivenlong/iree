@@ -13,7 +13,7 @@
 namespace mlir {
 class DialectRegistry;
 
-namespace holmes_compiler {
+namespace klw_compiler {
 
 /// Registers Flow transformations that require KLW-specific information into
 /// the transform dialect.
@@ -34,7 +34,7 @@ void populateLinalgToFunctionCallConversionPatterns(RewritePatternSet &patterns)
 
 }  // namespace transform_dialect
 }  // namespace KLW
-}  // namespace holmes_compiler
+}  // namespace klw_compiler
 }  // namespace mlir
 
 #define GET_OP_CLASSES
