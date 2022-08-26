@@ -1068,8 +1068,8 @@ static LogicalResult mergeBuiltinModuleSource(Location loc, StringRef fileName,
                                               Operation *targetOp,
                                               OpBuilder &targetBuilder) {
   // Find the file in the embedded data.
-  const klw_file_toc_t *toc = klw_compiler_Schedule_Builtins_create();
-  const klw_file_toc_t *file = nullptr;
+  const iree_file_toc_t *toc = klw_compiler_Schedule_Builtins_create();
+  const iree_file_toc_t *file = nullptr;
   for (size_t i = 0; i < klw_compiler_Schedule_Builtins_size(); ++i) {
     if (fileName == toc[i].name) {
       file = &toc[i];
