@@ -38,6 +38,6 @@ void populateLinalgToFunctionCallConversionPatterns(RewritePatternSet &patterns)
 }  // namespace mlir
 
 #define GET_OP_CLASSES
-#include "klw/compiler/Codegen/KLWGPU/TransformExtensions/KLWGPUExtensionsOps.h.inc"
+#include "klw/compiler/Dialect/Schedule/TransformExtensions/KLWGPUExtensionsOps.h.inc"
 
 #endif  // KLW_COMPILER_CODEGEN_KLWGPU_TRANSFORMEXTENSIONS_KLWGPUEXTENSIONS_H_
