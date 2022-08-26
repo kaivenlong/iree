@@ -10,4 +10,21 @@
     HOSTONLY
   )
 
+  iree_cc_binary(
+    NAME
+      klw-opt
+    SRCS
+      "klw-opt-main.cc"
+    DEPS
+      LLVMSupport
+      MLIRIR
+      MLIROptLib
+      MLIRSupport
+      iree::compiler::Tools::init_passes_and_dialects
+      iree::compiler::Tools::init_targets
+      iree::klw::compiler::Tools::init_klw_passes_and_dialects
+    DATA
+      ${IREE_LLD_TARGET}
+    HOSTONLY
+  )
 

@@ -14,21 +14,21 @@ iree_lit_test_suite(
   NAME
     lit
   SRCS
-    "async_folding.mlir"
-    "async_ops.mlir"
-    "builtin_ops.mlir"
-    "cmd_folding.mlir"
-    "cmd_ops.mlir"
-    "executable_ops.mlir"
-    "resource_folding.mlir"
+    #"async_folding.mlir"
+    #"async_ops.mlir"
+    #"builtin_ops.mlir"
+    #"cmd_folding.mlir"
+    #"cmd_ops.mlir"
+    #"executable_ops.mlir"
+    #"resource_folding.mlir"
     "resource_ops.mlir"
-    "tensor_folding.mlir"
-    "tensor_ops.mlir"
-    "timepoint_folding.mlir"
-    "timepoint_ops.mlir"
+    #"tensor_folding.mlir"
+    #"tensor_ops.mlir"
+    #"timepoint_folding.mlir"
+    #"timepoint_ops.mlir"
   TOOLS
     FileCheck
-    iree-opt
+    klw-opt
 )
 
 ### BAZEL_TO_CMAKE_PRESERVES_ALL_CONTENT_BELOW_THIS_LINE ###
