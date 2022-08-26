@@ -46,6 +46,9 @@
 #include "iree/compiler/Dialect/VM/Target/C/TranslationFlags.h"
 #endif  // IREE_HAVE_C_OUTPUT_FORMAT
 
+using namespace mlir;
+using namespace iree_compiler;
+
 namespace mlir {
 namespace klw_compiler {
 
@@ -81,7 +84,7 @@ IREEVMPipelineHooks &getHooks() {
 
 }  // namespace
 
-}  // namespace iree_compiler
+}  // namespace klw_compiler
 }  // namespace mlir
 
 int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
