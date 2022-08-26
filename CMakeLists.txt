@@ -763,6 +763,12 @@ if(IREE_BUILD_BENCHMARKS)
   add_subdirectory(benchmarks)
 endif()
 
+# The IREE_BUILD_KLW definition should be done before compiler and runtime.
+if(IREE_BUILD_KLW)
+  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
+  include(klw/klw.cmake)
+endif()
+
 if(IREE_BUILD_COMPILER)
   add_subdirectory(compiler)
 endif()
@@ -771,11 +777,6 @@ add_subdirectory(runtime)
 
 # tools/ can depend on compiler/ and runtime/
 add_subdirectory(tools)
-
-if(IREE_BUILD_KLW)
-  INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
-  include(klw/klw.cmake)
-endif()
 
 if(IREE_ENABLE_CLANG_TIDY)
   set(CMAKE_CXX_CLANG_TIDY "")
