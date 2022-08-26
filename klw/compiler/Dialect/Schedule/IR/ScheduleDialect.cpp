@@ -97,7 +97,7 @@ ScheduleDialect::ScheduleDialect(MLIRContext *context)
 
 #define GET_OP_LIST
   addOperations<
-#include "schedule/compiler/Dialect/Schedule/IR/ScheduleOps.cpp.inc"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.cpp.inc"
       >();
   addInterfaces<ScheduleInlinerInterface, ScheduleFolderInterface>();
 }

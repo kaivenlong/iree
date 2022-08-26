@@ -27,6 +27,9 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
+using namespace mlir;
+using namespace mlir::iree_compiler;
+
 #define GET_OP_CLASSES
 #include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.h.inc"  // IWYU pragma: export
 

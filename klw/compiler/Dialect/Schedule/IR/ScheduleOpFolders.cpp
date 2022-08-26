@@ -159,7 +159,7 @@ static bool materializeCOW(Location loc, Value rootValue, OpBuilder &builder) {
   unsigned untiedUses = 0;
   for (auto &use : rootValue.getUses()) {
     if (isa<KLW::Schedule::TimepointAwaitOp>(use.getOwner())) continue;
-    auto tiedOp = dyn_cast<KLW::Util::TiedOpInterface>(use.getOwner());
+    auto tiedOp = dyn_cast<IREE::Util::TiedOpInterface>(use.getOwner());
     bool isTied = tiedOp && tiedOp.isOperandTied(use.getOperandNumber());
     if (isTied) {
       tiedUses.push_back({use.getOwner(), use.getOperandNumber(), rootValue});
@@ -190,7 +190,7 @@ static bool materializeCOW(Location loc, Value rootValue, OpBuilder &builder) {
 
     auto sizeAwareType =
         tiedUse.value.getType()
-            .template cast<KLW::Util::SizeAwareTypeInterface>();
+            .template cast<IREE::Util::SizeAwareTypeInterface>();
     auto targetSize =
         sizeAwareType.queryValueSize(cloneLoc, tiedUse.value, builder);
 
@@ -256,7 +256,7 @@ struct TieRegionResults : public OpRewritePattern<Op> {
           continue;  // Already tied.
         }
         auto baseValue =
-            KLW::Util::TiedOpInterface::findTiedBaseValue(result.value());
+            IREE::Util::TiedOpInterface::findTiedBaseValue(result.value());
         if (auto blockArg = baseValue.template dyn_cast<BlockArgument>()) {
           unsigned operandIndex = blockArg.getArgNumber();
           op.setTiedResultOperandIndex(result.index(), operandIndex);
@@ -393,7 +393,7 @@ void ResourceDeallocaOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 OpFoldResult ResourceSizeOp::fold(ArrayRef<Attribute> operands) {
   auto sizeAwareType =
-      getOperand().getType().cast<KLW::Util::SizeAwareTypeInterface>();
+      getOperand().getType().cast<IREE::Util::SizeAwareTypeInterface>();
   Operation *op = this->getOperation();
   return sizeAwareType.findSizeValue(getOperand(), op->getBlock(),
                                      Block::iterator(op));
@@ -1063,7 +1063,7 @@ struct ElideUnneededTensorClones : public OpRewritePattern<TensorCloneOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(TensorCloneOp cloneOp,
                                 PatternRewriter &rewriter) const override {
-    if (!KLW::Util::TiedOpInterface::hasAnyTiedUses(cloneOp.getResult())) {
+    if (!IREE::Util::TiedOpInterface::hasAnyTiedUses(cloneOp.getResult())) {
       rewriter.replaceOp(cloneOp, cloneOp.getSource());
       return success();
     }
@@ -1731,7 +1731,7 @@ void AsyncExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<ChainDependentAwaits<AsyncExecuteOp>>(context);
   results.insert<CloneCapturedAsyncExecuteSubviewOps>(context);
   results.insert<ElideNoOpAsyncExecuteOp>(context);
-  results.insert<KLW::Util::ClosureOptimizationPattern<AsyncExecuteOp>>(
+  results.insert<IREE::Util::ClosureOptimizationPattern<AsyncExecuteOp>>(
       context);
   results.insert<TieRegionResults<AsyncExecuteOp>>(context);
   results.insert<ElideUnusedOp<AsyncExecuteOp>>(context);
@@ -1743,7 +1743,7 @@ void AsyncExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 void AsyncConcurrentOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                     MLIRContext *context) {
-  results.insert<KLW::Util::ClosureOptimizationPattern<AsyncConcurrentOp>>(
+  results.insert<IREE::Util::ClosureOptimizationPattern<AsyncConcurrentOp>>(
       context);
   results.insert<TieRegionResults<AsyncConcurrentOp>>(context);
   results.insert<ElideUnusedOp<AsyncConcurrentOp>>(context);
@@ -2121,7 +2121,7 @@ void CmdExecuteOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.insert<ChainDependentAwaits<CmdExecuteOp>>(context);
   results.insert<CloneCapturedCmdExecuteSubviewOps>(context);
   results.insert<ElideNoOpCmdExecuteOp>(context);
-  results.insert<KLW::Util::ClosureOptimizationPattern<CmdExecuteOp>>(context);
+  results.insert<IREE::Util::ClosureOptimizationPattern<CmdExecuteOp>>(context);
   results.insert<ElideUnusedOp<CmdExecuteOp>>(context);
 }
 
