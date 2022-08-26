@@ -10,6 +10,12 @@
 
 iree_add_all_subdirs()
 
+set(KLW_TRANSFORM_EXT "")
+if(IREE_BUILD_KLW)
+  list(APPEND KLW_TRANSFORM_EXT
+    iree::klw::compiler::Dialect::Schedule::TransformExtensions::KLWGPUExtensions)
+endif()
+
 iree_cc_library(
   NAME
     Interfaces
@@ -29,9 +35,7 @@ iree_cc_library(
     iree::compiler::Codegen::LLVMCPU::TransformExtensions::LLVMCPUExtensions
     iree::compiler::Codegen::LLVMGPU::TransformExtensions::LLVMGPUExtensions
     iree::compiler::Dialect::Flow::TransformExtensions::FlowExtensions
-if(IREE_BUILD_KLW)
-    iree::klw::compiler::Dialect::Schedule::TransformExtensions::KLWGPUExtensions
-endif()
+    ${KLW_TRANSFORM_EXT}
   PUBLIC
 )
 
