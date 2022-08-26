@@ -28,7 +28,7 @@ iree_lit_test_suite(
     #"timepoint_ops.mlir"
   TOOLS
     FileCheck
-    klw::tools::klw-opt
+    iree::klw::tools::klw-opt
 )
 
 ### BAZEL_TO_CMAKE_PRESERVES_ALL_CONTENT_BELOW_THIS_LINE ###
