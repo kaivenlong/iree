@@ -19,7 +19,7 @@ namespace Schedule {
 class ScheduleDialect : public Dialect {
  public:
   explicit ScheduleDialect(MLIRContext *context);
-  static StringRef getDialectNamespace() { return "sch"; }
+  static StringRef getDialectNamespace() { return "schedule"; }
 
   void getCanonicalizationPatterns(RewritePatternSet &results) const override;
 
