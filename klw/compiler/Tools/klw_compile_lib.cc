@@ -14,7 +14,7 @@
 #include "iree/compiler/ConstEval/Passes.h"
 #include "iree/compiler/Dialect/VM/Target/init_targets.h"
 #include "iree/compiler/Pipelines/Pipelines.h"
-#include "iree/compiler/Tools/init_dialects.h"
+#include "klw/compiler/Tools/init_dialects.h"
 #include "iree/compiler/Tools/init_llvmir_translations.h"
 #include "iree/compiler/Tools/init_passes.h"
 #include "iree/compiler/Tools/init_targets.h"
@@ -100,7 +100,7 @@ int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
 
   // MLIRContext registration and hooks.
   mlir::DialectRegistry registry;
-  mlir::iree_compiler::registerAllDialects(registry);
+  mlir::klw_compiler::registerAllDialects(registry);
   mlir::iree_compiler::registerLLVMIRTranslations(registry);
 
   // Register MLIRContext command-line options like

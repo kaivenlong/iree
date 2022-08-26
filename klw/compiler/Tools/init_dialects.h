@@ -9,26 +9,19 @@
 //
 // Based on MLIR's InitAllDialects but for IREE dialects.
 
-#ifndef IREE_COMPILER_TOOLS_INIT_DIALECTS_H_
-#define IREE_COMPILER_TOOLS_INIT_DIALECTS_H_
+#ifndef KLW_COMPILER_TOOLS_INIT_DIALECTS_H_
+#define KLW_COMPILER_TOOLS_INIT_DIALECTS_H_
 
-#include "iree/compiler/Tools/init_compiler_modules.h"
-#include "iree/compiler/Tools/init_input_dialects.h"
-#include "iree/compiler/Tools/init_iree_dialects.h"
-#include "iree/compiler/Tools/init_mlir_dialects.h"
+#include "iree/compiler/Tools/init_dialects.h"
 
 namespace mlir {
-namespace iree_compiler {
+namespace klw_compiler {
 
 inline void registerAllDialects(DialectRegistry &registry) {
-  registerMlirDialects(registry);
-  registerInputDialects(registry);
-  registerIreeDialects(registry);
-
-  mlir::iree_compiler::registerIreeCompilerModuleDialects(registry);
+  mlir::iree_compiler::registerAllDialects(registry);
 }
 
-}  // namespace iree_compiler
+}  // namespace klw_compiler
 }  // namespace mlir
 
-#endif  // IREE_COMPILER_TOOLS_INIT_DIALECTS_H_
+#endif  // KLW_COMPILER_TOOLS_INIT_DIALECTS_H_
