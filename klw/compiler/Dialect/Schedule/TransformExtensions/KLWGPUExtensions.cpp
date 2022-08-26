@@ -20,16 +20,9 @@
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Region.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Debug.h"
-
-#define DEBUG_TYPE "klw-transform-extensions"
-
-#define dbgs_v() (llvm::dbgs() << "[" << __FUNCTION__ << " " << __LINE__ << "]")
 
 using namespace mlir;
-//using namespace mlir::iree_compiler::IREE;
-using namespace mlir::klw_compiler::KLW;
+using namespace mlir::iree_compiler::IREE;
 
 klw_compiler::KLW::transform_dialect::KLWGPUExtensions::KLWGPUExtensions() {
   registerTransformOps<
@@ -46,18 +39,6 @@ void mlir::klw_compiler::registerTransformDialectKLWGPUExtension(
 //===---------------------------------------------------------------------===//
 // KLW-specific transformations.
 //===---------------------------------------------------------------------===//
-namespace mlir {
-namespace iree_compiler {
-extern llvm::cl::opt<std::string> clGPUCodegenTransformDialectFileName;
-}
-}
-
-DiagnosedSilenceableFailure
-transform_dialect::ReplaceOpWithCustomScheduleOp::applyToOne(
-    Operation *target, SmallVectorImpl<Operation *> &results,
-    transform::TransformState &state) {
-  return DiagnosedSilenceableFailure(success());
-}
 
 #define GET_OP_CLASSES
 #include "klw/compiler/Dialect/Schedule/TransformExtensions/KLWGPUExtensionsOps.cpp.inc"
