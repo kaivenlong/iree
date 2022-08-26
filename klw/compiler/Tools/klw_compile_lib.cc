@@ -47,7 +47,7 @@
 #endif  // IREE_HAVE_C_OUTPUT_FORMAT
 
 using namespace mlir;
-using namespace iree_compiler;
+using namespace mlir::iree_compiler;
 
 namespace mlir {
 namespace klw_compiler {
@@ -89,7 +89,7 @@ IREEVMPipelineHooks &getHooks() {
 
 int mlir::klw_compiler::runKlwcMain(int argc, char **argv) {
   llvm::InitLLVM y(argc, argv);
-  static llvm::cl::OptionCategory mainOptions("IREE Main Options");
+  static llvm::cl::OptionCategory mainOptions("KLW Main Options based on IREE");
 
   // Global/static registrations.
   // Allegedly need to register passes to get good reproducers
