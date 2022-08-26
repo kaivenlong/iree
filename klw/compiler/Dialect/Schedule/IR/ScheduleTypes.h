@@ -7,7 +7,7 @@
 #ifndef KLW_COMPILER_DIALECT_SCHEDULE_IR_SCHEDULETYPES_H_
 #define KLW_COMPILER_DIALECT_SCHEDULE_IR_SCHEDULETYPES_H_
 
-#include "klw/compiler/Dialect/Stream/IR/StreamDialect.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleDialect.h"
 #include "klw/compiler/Dialect/Util/IR/UtilTypes.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Optional.h"
@@ -22,41 +22,41 @@
 #include "mlir/Support/LLVM.h"
 
 // clang-format off: must be included after all LLVM/MLIR headers.
-#include "klw/compiler/Dialect/Stream/IR/StreamEnums.h.inc"  // IWYU pragma: export
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleEnums.h.inc"  // IWYU pragma: export
 // clang-format on
 
 // clang-format off: must be included after all LLVM/MLIR headers.
 #define GET_ATTRDEF_CLASSES
-#include "klw/compiler/Dialect/Stream/IR/StreamAttrs.h.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleAttrs.h.inc"  // IWYU pragma: keep
 // clang-format on
 
 namespace mlir {
 namespace klw_compiler {
 namespace KLW {
-namespace Stream {
+namespace Schedule {
 
 class AffinityAttr;
 
-#include "klw/compiler/Dialect/Stream/IR/StreamTypeInterfaces.h.inc"  // IWYU pragma: export
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypeInterfaces.h.inc"  // IWYU pragma: export
 
-}  // namespace Stream
+}  // namespace Schedule
 }  // namespace KLW
 }  // namespace klw_compiler
 }  // namespace mlir
 
 // clang-format off: must be included after all LLVM/MLIR headers.
 #define GET_TYPEDEF_CLASSES
-#include "klw/compiler/Dialect/Stream/IR/StreamTypes.h.inc"  // IWYU pragma: keep
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypes.h.inc"  // IWYU pragma: keep
 // clang-format on
 
 namespace mlir {
 namespace klw_compiler {
 namespace KLW {
-namespace Stream {
+namespace Schedule {
 
-#include "klw/compiler/Dialect/Stream/IR/StreamOpInterfaces.h.inc"  // IWYU pragma: export
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOpInterfaces.h.inc"  // IWYU pragma: export
 
-}  // namespace Stream
+}  // namespace Schedule
 }  // namespace KLW
 }  // namespace klw_compiler
 }  // namespace mlir

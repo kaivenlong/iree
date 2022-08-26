@@ -19,9 +19,9 @@ td_library(
     name = "td_files",
     srcs = enforce_glob(
         [
-            "StreamBase.td",
-            "StreamInterfaces.td",
-            "StreamOps.td",
+            "ScheduleBase.td",
+            "ScheduleInterfaces.td",
+            "ScheduleOps.td",
         ],
         include = ["*.td"],
     ),
@@ -40,33 +40,33 @@ td_library(
 iree_compiler_cc_library(
     name = "IR",
     srcs = [
-        "StreamDialect.cpp",
-        "StreamEnums.cpp.inc",
-        "StreamOpFolders.cpp",
-        "StreamOpInterfaces.cpp.inc",
-        "StreamOps.cpp",
-        "StreamOps.cpp.inc",
-        "StreamTypeInterfaces.cpp.inc",
-        "StreamTypes.cpp",
-        "StreamTypes.cpp.inc",
+        "ScheduleDialect.cpp",
+        "ScheduleEnums.cpp.inc",
+        "ScheduleOpFolders.cpp",
+        "ScheduleOpInterfaces.cpp.inc",
+        "ScheduleOps.cpp",
+        "ScheduleOps.cpp.inc",
+        "ScheduleTypeInterfaces.cpp.inc",
+        "ScheduleTypes.cpp",
+        "ScheduleTypes.cpp.inc",
     ],
     hdrs = [
-        "StreamDialect.h",
-        "StreamEnums.h.inc",
-        "StreamOpInterfaces.h.inc",
-        "StreamOps.h",
-        "StreamOps.h.inc",
-        "StreamTraits.h",
-        "StreamTypeInterfaces.h.inc",
-        "StreamTypes.h",
-        "StreamTypes.h.inc",
+        "ScheduleDialect.h",
+        "ScheduleEnums.h.inc",
+        "ScheduleOpInterfaces.h.inc",
+        "ScheduleOps.h",
+        "ScheduleOps.h.inc",
+        "ScheduleTraits.h",
+        "ScheduleTypeInterfaces.h.inc",
+        "ScheduleTypes.h",
+        "ScheduleTypes.h.inc",
     ],
     deps = [
-        ":StreamEnumsGen",
-        ":StreamInterfacesGen",
-        ":StreamOpsGen",
-        ":StreamTypesGen",
-        "//compiler/src/iree/compiler/Dialect/Stream/Builtins",
+        ":ScheduleEnumsGen",
+        ":ScheduleInterfacesGen",
+        ":ScheduleOpsGen",
+        ":ScheduleTypesGen",
+        "//compiler/src/iree/compiler/Dialect/Schedule/Builtins",
         "//compiler/src/iree/compiler/Dialect/Util/IR",
         "//compiler/src/iree/compiler/Utils",
         "@llvm-project//llvm:Support",
@@ -85,113 +85,113 @@ iree_compiler_cc_library(
 )
 
 iree_gentbl_cc_library(
-    name = "StreamEnumsGen",
+    name = "ScheduleEnumsGen",
     tbl_outs = [
         (
             ["--gen-enum-decls"],
-            "StreamEnums.h.inc",
+            "ScheduleEnums.h.inc",
         ),
         (
             ["--gen-enum-defs"],
-            "StreamEnums.cpp.inc",
+            "ScheduleEnums.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "StreamBase.td",
+    td_file = "ScheduleBase.td",
     deps = [":td_files"],
 )
 
 iree_gentbl_cc_library(
-    name = "StreamInterfacesGen",
+    name = "ScheduleInterfacesGen",
     tbl_outs = [
         (
             ["--gen-op-interface-decls"],
-            "StreamOpInterfaces.h.inc",
+            "ScheduleOpInterfaces.h.inc",
         ),
         (
             ["--gen-op-interface-defs"],
-            "StreamOpInterfaces.cpp.inc",
+            "ScheduleOpInterfaces.cpp.inc",
         ),
         (
             ["--gen-type-interface-decls"],
-            "StreamTypeInterfaces.h.inc",
+            "ScheduleTypeInterfaces.h.inc",
         ),
         (
             ["--gen-type-interface-defs"],
-            "StreamTypeInterfaces.cpp.inc",
+            "ScheduleTypeInterfaces.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "StreamInterfaces.td",
+    td_file = "ScheduleInterfaces.td",
     deps = [":td_files"],
 )
 
 iree_gentbl_cc_library(
-    name = "StreamOpsGen",
+    name = "ScheduleOpsGen",
     tbl_outs = [
         (
             ["--gen-op-decls"],
-            "StreamOps.h.inc",
+            "ScheduleOps.h.inc",
         ),
         (
             ["--gen-op-defs"],
-            "StreamOps.cpp.inc",
+            "ScheduleOps.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "StreamOps.td",
+    td_file = "ScheduleOps.td",
     deps = [":td_files"],
 )
 
 iree_gentbl_cc_library(
-    name = "StreamTypesGen",
+    name = "ScheduleTypesGen",
     tbl_outs = [
         (
             [
                 "--gen-attrdef-decls",
                 "--attrdefs-dialect=stream",
             ],
-            "StreamAttrs.h.inc",
+            "ScheduleAttrs.h.inc",
         ),
         (
             [
                 "--gen-attrdef-defs",
                 "--attrdefs-dialect=stream",
             ],
-            "StreamAttrs.cpp.inc",
+            "ScheduleAttrs.cpp.inc",
         ),
         (
             [
                 "--gen-typedef-decls",
                 "--typedefs-dialect=stream",
             ],
-            "StreamTypes.h.inc",
+            "ScheduleTypes.h.inc",
         ),
         (
             [
                 "--gen-typedef-defs",
                 "--typedefs-dialect=stream",
             ],
-            "StreamTypes.cpp.inc",
+            "ScheduleTypes.cpp.inc",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "StreamBase.td",
+    td_file = "ScheduleBase.td",
     deps = [":td_files"],
 )
 
 iree_tablegen_doc(
-    name = "StreamDialectDocGen",
+    name = "ScheduleDialectDocGen",
     tbl_outs = [
         (
             [
                 "--gen-dialect-doc",
                 "--dialect=stream",
             ],
-            "StreamDialect.md",
+            "ScheduleDialect.md",
         ),
     ],
     tblgen = "@llvm-project//mlir:mlir-tblgen",
-    td_file = "StreamOps.td",
+    td_file = "ScheduleOps.td",
     deps = [":td_files"],
 )

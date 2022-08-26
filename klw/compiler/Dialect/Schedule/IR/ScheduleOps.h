@@ -9,9 +9,9 @@
 
 #include <cstdint>
 
-#include "klw/compiler/Dialect/Stream/IR/StreamDialect.h"
-#include "klw/compiler/Dialect/Stream/IR/StreamTraits.h"
-#include "klw/compiler/Dialect/Stream/IR/StreamTypes.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleDialect.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTraits.h"
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleTypes.h"
 #include "klw/compiler/Dialect/Util/IR/UtilOps.h"
 #include "klw/compiler/Dialect/Util/IR/UtilTraits.h"
 #include "klw/compiler/Dialect/Util/IR/UtilTypes.h"
@@ -28,6 +28,6 @@
 #include "mlir/Interfaces/ViewLikeInterface.h"
 
 #define GET_OP_CLASSES
-#include "klw/compiler/Dialect/Stream/IR/StreamOps.h.inc"  // IWYU pragma: export
+#include "klw/compiler/Dialect/Schedule/IR/ScheduleOps.h.inc"  // IWYU pragma: export
 
 #endif  // KLW_COMPILER_DIALECT_SCHEDULE_IR_SCHEDULEOPS_H_
