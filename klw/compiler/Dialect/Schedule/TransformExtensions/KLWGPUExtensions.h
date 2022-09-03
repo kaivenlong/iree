@@ -31,6 +31,12 @@ class KLWGPUExtensions
 /// Outline linalg ops
 void populateLinalgToFunctionCallConversionPatterns(RewritePatternSet &patterns);
 
+/// Main function to replace origin op witih custom schedule template function
+LogicalResult replaceOpWithCustomSchedule(Operation &target,
+  func::FuncOp &sch);
+
+/// Outline linalg op as function call
+void populateLinalgToFunctionCallConversionPatterns(RewritePatternSet &patterns);
 
 }  // namespace transform_dialect
 }  // namespace KLW

@@ -56,7 +56,43 @@ DiagnosedSilenceableFailure
 transform_dialect::ReplaceOpWithCustomScheduleOp::applyToOne(
     Operation *target, SmallVectorImpl<Operation *> &results,
     transform::TransformState &state) {
-  dbgs_v() << "ReplaceOpWithCustomScheduleOp: target is \n" << *target << "\n";
+  auto schFuncName = getSchedule();
+  MLIRContext *context = target->getCotnext();
+  OwningOpRef<ModuleOp> module;
+  DEBUG_WITH_TYPE(DEBUG_TYPE, {
+    dbgs_v() << "ReplaceOpWithCustomScheduleOp: target is \n" << *target << "\n";
+  });
+  if (failed(transform::parseTransformModuleFromFile(context,
+    mlir::iree_compiler::clGPUCodegenTransformDialectFileName, module)) {
+    dbgs_v() << "error: failed to load module file: " <<
+      mlir::iree_compiler::clGPUCodegenTransformDialectFileName << "\n\n";
+    return DiagnosedSilenceableFailure(failure());
+  }
+  ModuleOp moduleOp = module.get();
+  func::FuncOp sch;
+  bool found = false;
+  moduleOp.walk([&](func::FuncOp funcOp) {
+    if (schFuncName.equals(funcOp.getName().str()) && !found) {
+      sch = funcOp;
+      found = true;
+      DEBUG_WITH_TYPE(DEBUG_TYPE, {
+        dbgs_v() << "find schedule template function: \n" << sch << "\n";
+      });
+    }
+  });
+  if (!found) {
+    DEBUG_WITH_TYPE(DEBUG_TYPE, {
+      dbgs_v() << "error: cannot find schedule function for \n"
+        << schFuncName << "\n";
+    });
+    return DiagnosedSilenceableFailure(failure());
+  }
+  if (failed(replaceOpWithCustomSchedule(*target, sch))) {
+     DEBUG_WITH_TYPE(DEBUG_TYPE, {
+      dbgs_v() << "error: failed to replace target: \n" << *target << "\n";
+    });
+    return DiagnosedSilenceableFailure(failure());
+  }
   return DiagnosedSilenceableFailure(success());
 }
 

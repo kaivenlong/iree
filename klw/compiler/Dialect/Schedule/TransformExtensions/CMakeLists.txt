@@ -27,6 +27,8 @@ iree_cc_library(
     "KLWGPUExtensions.h"
     "KLWGPUExtensionsOps.h.inc"
   SRCS
+    "OutlineLinalgOp.cpp"
+    "CustomSchedule.cpp"
     "KLWGPUExtensions.cpp"
     "KLWGPUExtensionsOps.cpp.inc"
   DEPS
