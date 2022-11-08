@@ -124,9 +124,9 @@ LogicalResult setConvOpConfig(linalg::LinalgOp linalgOp,
                               const int64_t subgroupSize,
                               const int64_t bestTilingFactor) {
   LLVM_DEBUG(llvm::dbgs() << "trying to deduce config as convolution...\n");
-  Type inputType = linalgOp.getInputOperand(0)->get().getType();
+  Type inputType = linalgOp.getDpsInputOperand(0)->get().getType();
   ArrayRef<int64_t> inputShape = inputType.cast<ShapedType>().getShape();
-  Type outputType = linalgOp.getOutputOperand(0)->get().getType();
+  Type outputType = linalgOp.getDpsInitOperand(0)->get().getType();
   ArrayRef<int64_t> outputShape = outputType.cast<ShapedType>().getShape();
 
   const bool isNCHW = isa<linalg::Conv2DNchwFchwOp>(*linalgOp);
@@ -242,10 +242,10 @@ LogicalResult setConvOpConfig(linalg::LinalgOp linalgOp,
 /// Given the linalg `op` with `lhsShape` and `rhsShape`, tries to treat as a
 /// (batch) matmul like op and deduce the index of the loop corresponding to
 /// B/M/N/K dimension respectively. Returns -1 as the index if unable to deduce.
-static std::tuple<int, int, int, int> getMatmulBMNKIndex(linalg::LinalgOp op,
-                                                         int &lastParallelDim) {
-  OpOperand *lhs = op.getInputOperand(0);
-  OpOperand *rhs = op.getInputOperand(1);
+std::tuple<int, int, int, int> getMatmulBMNKIndex(linalg::LinalgOp op,
+                                                  int *lastParallelDim) {
+  OpOperand *lhs = op.getDpsInputOperand(0);
+  OpOperand *rhs = op.getDpsInputOperand(1);
   auto lhsShape = lhs->get().getType().cast<ShapedType>().getShape();
   auto rhsShape = rhs->get().getType().cast<ShapedType>().getShape();
 
@@ -279,7 +279,7 @@ static std::tuple<int, int, int, int> getMatmulBMNKIndex(linalg::LinalgOp op,
       if (nIndex >= 0 && bIndex < 0) bIndex = nIndex;
       nIndex = i;
     }
-    lastParallelDim = i;
+    if (lastParallelDim) *lastParallelDim = i;
   }
 
   LLVM_DEBUG({
@@ -463,8 +463,8 @@ LogicalResult setMatmulOpConfig(spirv::ResourceLimitsAttr limits,
                                 std::array<int64_t, 3> bestThreadTileSizeMNK,
                                 bool enablePromotion) {
   LLVM_DEBUG(llvm::dbgs() << "trying to deduce config as matmul...\n");
-  OpOperand *lhs = op.getInputOperand(0);
-  OpOperand *rhs = op.getInputOperand(1);
+  OpOperand *lhs = op.getDpsInputOperand(0);
+  OpOperand *rhs = op.getDpsInputOperand(1);
 
   auto lhsType = lhs->get().getType().cast<ShapedType>();
   auto rhsType = rhs->get().getType().cast<ShapedType>();
@@ -480,7 +480,7 @@ LogicalResult setMatmulOpConfig(spirv::ResourceLimitsAttr limits,
 
   int lastParallelDim = -1;
   const auto [bIndex, mIndex, nIndex, kIndex] =
-      getMatmulBMNKIndex(op, lastParallelDim);
+      getMatmulBMNKIndex(op, &lastParallelDim);
   if (mIndex < 0 || nIndex < 0 || kIndex < 0) return success();
   const bool isBM = bIndex >= 0;
 
@@ -624,23 +624,6 @@ static LogicalResult setFftOpConfig(spirv::ResourceLimitsAttr limits,
 // Reduction Default Configuration
 //===----------------------------------------------------------------------===//
 
-// Check if the given function contains an op that may require a broadcast of
-// the reduced result.
-static bool isFusedWithBroadcast(linalg::LinalgOp reduce) {
-  func::FuncOp entryPoint = reduce->getParentOfType<func::FuncOp>();
-  int64_t reducedRank =
-      reduce->getResult(0).getType().cast<ShapedType>().getRank();
-  bool hasBroadcast = false;
-  entryPoint.walk([&](linalg::LinalgOp linalgOp) {
-    if (reduce != linalgOp && linalgOp.getNumLoops() > reducedRank) {
-      hasBroadcast = true;
-      return WalkResult::interrupt();
-    }
-    return WalkResult::advance();
-  });
-  return hasBroadcast;
-}
-
 /// Set the configuration for reductions that can be mapped to warp reductions.
 static LogicalResult setReductionConfig(const spirv::TargetEnv &targetEnv,
                                         linalg::GenericOp op) {
@@ -659,7 +642,7 @@ static LogicalResult setReductionConfig(const spirv::TargetEnv &targetEnv,
 
   // Only support projected permutation for now. This could be extended to
   // projected permutated with broadcast.
-  if (llvm::any_of(op.getInputOperands(), [&](OpOperand *input) {
+  if (llvm::any_of(op.getDpsInputOperands(), [&](OpOperand *input) {
         return !op.getMatchingIndexingMap(input).isProjectedPermutation();
       })) {
     return failure();
@@ -694,11 +677,6 @@ static LogicalResult setReductionConfig(const spirv::TargetEnv &targetEnv,
     groupSize = llvm::APIntOps::GreatestCommonDivisor(
                     {64, uint64_t(groupSize)}, {64, uint64_t(maxWorkgroupSize)})
                     .getZExtValue();
-    // Workaround, the vector distribution doesn't handle cases where we fuse
-    // the reduction with a consumer that needs to be tiled.
-    // TODO(thomasraoux): remove the restriction once vector distribution is
-    // improved.
-    if (isFusedWithBroadcast(op)) return failure();
   }
   std::array<int64_t, 3> workgroupSize = {groupSize, 1, 1};
   // Tile all the parallel dimension to 1.
@@ -769,7 +747,7 @@ static LogicalResult setDefaultOpConfig(spirv::ResourceLimitsAttr limits,
 
   // Special case for non-linalg ops.
   auto linalgOp = dyn_cast<linalg::LinalgOp>(op);
-  if (!linalgOp || linalgOp.getNumOutputs() != 1) {
+  if (!linalgOp || linalgOp.getNumDpsInits() != 1) {
     auto pipeline = CodeGenPipeline::SPIRVBaseDistribute;
 
     initConfiguration();

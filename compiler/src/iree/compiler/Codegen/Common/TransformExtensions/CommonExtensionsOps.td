@@ -30,10 +30,16 @@ def ApplyPatternsOp : Op<Transform_Dialect, "iree.apply_patterns",
 
     The following additive attributes can be set, they add patterns in an 
     unspecified order:
-      - additional_iree_patterns: fancy patterns we shortcut into the system, will
-      need to be sliced out better in the future.
+      - additional_iree_patterns: fancy patterns we shortcut into the system,
+      will need to be sliced out better in the future.
       - canonicalization: adds all the canonicalization patterns of all
       registered dialects and ops.
+      - promote_foreach_thread_capture_to_shared: adds patterns that rewrite
+      uses of values captured by scf.foreach_thread with the matching
+      shared_outs bbarg. This checks that the values captured are
+      tensor.extract_slice with a matching tensor.parallel_insert_slice to
+      approximate the lack of cross-thread dependences. However this can still
+      be unsafe wrt parallelism so use carefully!
       - rank_reducing: adds patterns that results in rank-reducing behavior on
       subset-based operations.
       - simplify_memref_metadata: adds patterns that simplify the uses of
@@ -63,6 +69,7 @@ def ApplyPatternsOp : Op<Transform_Dialect, "iree.apply_patterns",
   let arguments = (ins PDL_Operation:$target,
                        UnitAttr:$additional_iree_patterns,
                        UnitAttr:$canonicalization,
+                       UnitAttr:$promote_foreach_thread_capture_to_shared,
                        UnitAttr:$rank_reducing,
                        UnitAttr:$simplify_memref_metadata,
                        UnitAttr:$swap_padding_elide_conditional,
@@ -71,6 +78,11 @@ def ApplyPatternsOp : Op<Transform_Dialect, "iree.apply_patterns",
 
   let assemblyFormat = "$target attr-dict";
   let cppNamespace = "mlir::iree_compiler::IREE::transform_dialect";
+
+  let builders = [
+    // TODO: Some bitvector to scale better than n-bools.
+    OpBuilder<(ins "Value":$target, "bool":$rankReducing)>
+  ];
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
@@ -112,6 +124,10 @@ def IREEBufferizeOp : Op<Transform_Dialect, "iree.bufferize",
 
   let assemblyFormat = "attr-dict $target";
   let cppNamespace = "mlir::iree_compiler::IREE::transform_dialect";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target, CArg<"bool", "false">:$targetGpu)>
+  ];
 }
 
 def ForeachThreadToWorkgroupOp : Op<Transform_Dialect, 
@@ -161,6 +177,11 @@ def ForeachThreadToWorkgroupOp : Op<Transform_Dialect,
 
   let assemblyFormat = "$target attr-dict";
   let cppNamespace = "mlir::iree_compiler::IREE::transform_dialect";
+
+  let builders = [
+    OpBuilder<(ins "Value":$target)>
+  ];
+
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
         ::mlir::func::FuncOp target,
@@ -169,7 +190,7 @@ def ForeachThreadToWorkgroupOp : Op<Transform_Dialect,
   }];
 }
 
-def TileToForeachThreadAndWorkgroupCountRegion :
+def TileToForeachThreadAndWorkgroupCountRegionOp :
     Op<Transform_Dialect, "iree.tile_to_foreach_thread_and_workgroup_count_region",
       [AttrSizedOperandSegments,
        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
@@ -204,6 +225,29 @@ def TileToForeachThreadAndWorkgroupCountRegion :
   }];
   let cppNamespace = "mlir::iree_compiler::IREE::transform_dialect";
   let hasVerifier = 1;
+
+  let builders = [
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<int64_t>":$staticTileSizes,
+                   CArg<"::mlir::transform::TileSizesSpec", 
+                        "::mlir::transform::TileSizesSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<OpFoldResult>":$mixedTileSizes,
+                   CArg<"::mlir::transform::TileSizesSpec", 
+                        "::mlir::transform::TileSizesSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<int64_t>":$staticNumThreads,
+                   CArg<"::mlir::transform::NumThreadsSpec", 
+                        "::mlir::transform::NumThreadsSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+    OpBuilder<(ins "Value":$target,
+                   "ArrayRef<OpFoldResult>":$mixedNumThreads,
+                   CArg<"::mlir::transform::NumThreadsSpec", 
+                        "::mlir::transform::NumThreadsSpec()">,
+                   CArg<"ArrayRef<int64_t>", "{}">:$threadDimMapping)>,
+  ];
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure apply(

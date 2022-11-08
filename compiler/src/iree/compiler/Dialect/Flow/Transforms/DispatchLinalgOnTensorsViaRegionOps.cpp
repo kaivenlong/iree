@@ -12,7 +12,8 @@
 // DispatchLinalgOnTensors.cpp.
 
 #include "iree-dialects/Dialect/LinalgExt/Passes/Passes.h"
-#include "iree/compiler/Dialect/Flow/Conversion/TensorToFlow/ConvertTensorToFlow.h"
+#include "iree/compiler/Dialect/Flow/Conversion/TensorToFlow/Patterns.h"
+#include "iree/compiler/Dialect/Flow/Conversion/TensorToFlow/Utils.h"
 #include "iree/compiler/Dialect/Flow/IR/FlowDialect.h"
 #include "iree/compiler/Dialect/Flow/IR/FlowOps.h"
 #include "iree/compiler/Dialect/Flow/Transforms/ConvertRegionToWorkgroups.h"
@@ -429,7 +430,7 @@ static bool isFusableWithProducer(OpOperand &operand) {
   if (isa<linalg::LinalgOp>(consumer) && isa<linalg::LinalgOp>(producer)) {
     auto consumerLinalgOp = cast<linalg::LinalgOp>(consumer);
     auto producerLinalgOp = cast<linalg::LinalgOp>(producer);
-    if (consumerLinalgOp.isOutput(&operand) &&
+    if (consumerLinalgOp.isDpsInit(&operand) &&
         producerLinalgOp.getNumLoops() ==
             producerLinalgOp.getNumParallelLoops()) {
       return true;
@@ -660,6 +661,20 @@ static FailureOr<Flow::DispatchWorkgroupsOp> wrapInWorkgroupsOp(
   return *workgroupsOp;
 }
 
+/// Wrap all given ops in a DispatchWorkgroupsOp.
+static FailureOr<SmallVector<Flow::DispatchWorkgroupsOp>> wrapInWorkgroupsOp(
+    TensorDimTrackingRewriter &rewriter, SmallVector<Operation *> rootOps,
+    bool generateWorkloadRegion) {
+  SmallVector<Flow::DispatchWorkgroupsOp> result;
+  for (Operation *rootOp : rootOps) {
+    auto workgroupsOp =
+        wrapInWorkgroupsOp(rewriter, rootOp, generateWorkloadRegion);
+    if (failed(workgroupsOp)) return failure();
+    result.push_back(*workgroupsOp);
+  }
+  return result;
+}
+
 /// Wrap all ops of the given type that are direct children of the given op in
 /// a DispatchWorkgroupsOp.
 template <typename OpTy>
@@ -673,14 +688,7 @@ static FailureOr<SmallVector<Flow::DispatchWorkgroupsOp>> wrapInWorkgroupsOp(
       for (auto op : b.getOps<OpTy>()) rootOps.push_back(op.getOperation());
 
   // Wrap ops in DispatchWorkgroupsOps.
-  SmallVector<Flow::DispatchWorkgroupsOp> result;
-  for (Operation *rootOp : rootOps) {
-    auto workgroupsOp =
-        wrapInWorkgroupsOp(rewriter, rootOp, generateWorkloadRegion);
-    if (failed(workgroupsOp)) return failure();
-    result.push_back(*workgroupsOp);
-  }
-  return result;
+  return wrapInWorkgroupsOp(rewriter, rootOps, generateWorkloadRegion);
 }
 
 namespace {
@@ -726,10 +734,22 @@ void DispatchLinalgOnTensorsViaRegionOpsPass::runOnOperation() {
     llvm::dbgs() << "\n\n";
   });
 
-  // Step 2: Create a DispatchWorkgroupsOp for every remaining InsertSliceOp.
+  // Step 2a: Rewrite InsertSliceOps to TensorUpdateOps.
+  SmallVector<tensor::InsertSliceOp> insertSliceOps;
+  SmallVector<Operation *> remainingInsertSliceOps;
+  funcOp.walk([&](tensor::InsertSliceOp op) {
+    if (!op->getParentOfType<Flow::DispatchRegionOp>())
+      insertSliceOps.push_back(op);
+  });
+  for (tensor::InsertSliceOp insertSliceOp : insertSliceOps)
+    if (failed(
+            Flow::convertInsertSliceOpToFlowUpdateOp(rewriter, insertSliceOp)))
+      remainingInsertSliceOps.push_back(insertSliceOp);
+
+  // Step 2b: Create a DispatchWorkgroupsOp for every remaining InsertSliceOp.
   FailureOr<SmallVector<Flow::DispatchWorkgroupsOp>> newWorkgroupsOps =
-      wrapInWorkgroupsOp<tensor::InsertSliceOp>(rewriter, funcOp,
-                                                generateWorkloadRegion);
+      wrapInWorkgroupsOp(rewriter, remainingInsertSliceOps,
+                         generateWorkloadRegion);
   if (failed(newWorkgroupsOps)) return signalPassFailure();
   workgroupsOps.append(newWorkgroupsOps->begin(), newWorkgroupsOps->end());
 

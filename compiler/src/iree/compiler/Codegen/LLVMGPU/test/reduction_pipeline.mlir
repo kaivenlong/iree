@@ -19,10 +19,10 @@ hal.executable.variant @cuda, target = <"cuda", "cuda-nvptx-fb"> {
       %c0 = arith.constant 0 : index
       %c10240 = arith.constant 10240 : index
       %cst = arith.constant 1.000000e+00 : f32
-      %0 = hal.interface.binding.subspan set(0) binding(0) type(storage_buffer) : !flow.dispatch.tensor<readonly:512x10240xf32>
-      %1 = hal.interface.binding.subspan set(0) binding(1) type(storage_buffer) : !flow.dispatch.tensor<writeonly:512xf32>
+      %0 = hal.interface.binding.subspan set(0) binding(0) type(storage_buffer) : !flow.dispatch.tensor<readonly:tensor<512x10240xf32>>
+      %1 = hal.interface.binding.subspan set(0) binding(1) type(storage_buffer) : !flow.dispatch.tensor<writeonly:tensor<512xf32>>
       %5 = flow.dispatch.tensor.load %0, offsets = [0, 0], sizes = [512, 10240], strides = [1, 1]
-          : !flow.dispatch.tensor<readonly:512x10240xf32> -> tensor<512x10240xf32>
+          : !flow.dispatch.tensor<readonly:tensor<512x10240xf32>> -> tensor<512x10240xf32>
       %8 = tensor.empty() : tensor<512xf32>
       %9 = linalg.fill ins(%cst : f32) outs(%8 : tensor<512xf32>) -> tensor<512xf32>
       %10 = linalg.generic {
@@ -33,7 +33,7 @@ hal.executable.variant @cuda, target = <"cuda", "cuda-nvptx-fb"> {
           linalg.yield %11 : f32
         } -> tensor<512xf32>
       flow.dispatch.tensor.store %10, %1, offsets = [0], sizes = [512], strides = [1]
-          : tensor<512xf32> -> !flow.dispatch.tensor<writeonly:512xf32>
+          : tensor<512xf32> -> !flow.dispatch.tensor<writeonly:tensor<512xf32>>
       return
     }
   }
@@ -103,10 +103,10 @@ hal.executable.variant @cuda, target = <"cuda", "cuda-nvptx-fb"> {
       %c10240 = arith.constant 10240 : index
       %cst_0 = arith.constant 3.840000e+02 : f32
       %cst = arith.constant 1.000000e+00 : f32
-      %0 = hal.interface.binding.subspan set(0) binding(0) type(storage_buffer) : !flow.dispatch.tensor<readonly:512x10240xf32>
-      %1 = hal.interface.binding.subspan set(0) binding(1) type(storage_buffer) : !flow.dispatch.tensor<writeonly:512x10240xf32>
+      %0 = hal.interface.binding.subspan set(0) binding(0) type(storage_buffer) : !flow.dispatch.tensor<readonly:tensor<512x10240xf32>>
+      %1 = hal.interface.binding.subspan set(0) binding(1) type(storage_buffer) : !flow.dispatch.tensor<writeonly:tensor<512x10240xf32>>
       %5 = flow.dispatch.tensor.load %0, offsets = [0, 0], sizes = [512, 1024], strides = [1, 1]
-          : !flow.dispatch.tensor<readonly:512x10240xf32> -> tensor<512x10240xf32>
+          : !flow.dispatch.tensor<readonly:tensor<512x10240xf32>> -> tensor<512x10240xf32>
       %8 = tensor.empty() : tensor<512xf32>
       %9 = linalg.fill ins(%cst : f32) outs(%8 : tensor<512xf32>) -> tensor<512xf32>
       %10 = linalg.generic {
@@ -127,14 +127,37 @@ hal.executable.variant @cuda, target = <"cuda", "cuda-nvptx-fb"> {
             linalg.yield %12 : f32
           } -> tensor<512x10240xf32>
       flow.dispatch.tensor.store %11, %1, offsets = [0, 0], sizes = [512, 10240], strides = [1, 1]
-          : tensor<512x10240xf32> -> !flow.dispatch.tensor<writeonly:512x10240xf32>
+          : tensor<512x10240xf32> -> !flow.dispatch.tensor<writeonly:tensor<512x10240xf32>>
       return
     }
   }
 }
 }
 
-// TODO: enable group reduce for large reduction + broadcast fused.
 //   CHECK-LABEL:  func.func @warp_reduction_broadcast_dispatch
-//     CHECK-NOT:    gpu.shuffle
+//         CHECK:    scf.for {{.*}} -> (vector<4xf32>) {
+//         CHECK:      vector.transfer_read {{.*}} : memref<1x5x2048xf32, strided<[10240, 2048, 1], offset: ?>>, vector<4xf32>
+//         CHECK:      arith.addf {{.*}} : vector<4xf32>
+//         CHECK:      scf.yield
+//         CHECK:    vector.reduction <add>, %{{.*}} : vector<4xf32> into f32
+//         CHECK:    gpu.shuffle  xor
+//         CHECK:    arith.addf
+//         CHECK:    gpu.shuffle  xor
+//         CHECK:    arith.addf
+//         CHECK:    gpu.shuffle  xor
+//         CHECK:    arith.addf
+//         CHECK:    gpu.shuffle  xor
+//         CHECK:    arith.addf
+//         CHECK:    gpu.shuffle  xor
+//         CHECK:    arith.addf
+//         CHECK:    memref.store {{.*}} : memref<16xf32, 3>
+//         CHECK:    gpu.barrier
+//         CHECK:    vector.transfer_read
+//         CHECK:    vector.reduction
+//         CHECK:    arith.addf
+//         CHECK:    vector.broadcast %{{.*}} : f32 to vector<4xf32>
+//         CHECK:    %15 = arith.divf {{.*}} : vector<4xf32>
+//         CHECK:    scf.for
+//         CHECK:      vector.transfer_write {{.*}} : vector<4xf32>, memref<512x10240xf32>
+//         CHECK:    }
 //         CHECK:    return
