@@ -15,8 +15,8 @@
 #include "iree/compiler/InputConversion/MHLO/PassDetail.h"
 #include "iree/compiler/InputConversion/MHLO/Passes.h"
 #include "iree/compiler/InputConversion/MHLO/Rewriters.h"
-#include "mlir-hlo/Dialect/mhlo/IR/hlo_ops.h"
-#include "mlir-hlo/Dialect/mhlo/transforms/map_mhlo_to_scalar_op.h"
+#include "mhlo/IR/hlo_ops.h"
+#include "mhlo/transforms/map_mhlo_to_scalar_op.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlow.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
@@ -307,7 +307,8 @@ struct FftOpConversion : public OpConversionPattern<mhlo::FftOp> {
     maps.push_back(
         AffineMap::get(rank, 0, b.getAffineDimExpr(rank - 1), b.getContext()));
     maps.push_back(b.getMultiDimIdentityMap(rank));
-    SmallVector<StringRef> iterTypes(rank, getParallelIteratorTypeName());
+    SmallVector<utils::IteratorType> iterTypes(rank,
+                                               utils::IteratorType::parallel);
 
     Value indices = getBitReversalBuffer(b, fftLength);
     auto genericOp = b.create<linalg::GenericOp>(

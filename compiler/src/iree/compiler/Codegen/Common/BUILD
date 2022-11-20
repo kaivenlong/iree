@@ -102,6 +102,7 @@ iree_compiler_cc_library(
     ],
     deps = [
         # Dialects
+        "//compiler/src/iree/compiler/Codegen/Dialect:IREECodegenDialect",
         "//compiler/src/iree/compiler/Dialect/Flow/IR",
         "//llvm-external-projects/iree-dialects:IREELinalgExtDialect",
         "//llvm-external-projects/iree-dialects:IREELinalgExtTransformOps",
@@ -162,8 +163,10 @@ iree_compiler_cc_library(
         "ForOpCanonicalizationPass.cpp",
         "FuseTensorPadWithConsumer.cpp",
         "IREEComprehensiveBufferizePass.cpp",
+        "MaterializeEncodingPass.cpp",
         "OptimizeVectorTransferPass.cpp",
         "PolynomialApproximationPass.cpp",
+        "SplitFullPartialTransferPass.cpp",
         "TestPartitionableLoopsInterface.cpp",
         "TileAndDistributeToWorkgroupsPass.cpp",
         "TypePropagationPass.cpp",
@@ -233,6 +236,7 @@ iree_compiler_cc_library(
         "DecomposeLinalgGeneric.cpp",
         "FoldAffineMinInDistributedLoops.cpp",
         "GPUDistributeSharedMemoryCopy.cpp",
+        "GPUMultiBuffering.cpp",
         "GPUPatterns.cpp",
         "GPUPipelining.cpp",
         "GPUReduceBankConflicts.cpp",

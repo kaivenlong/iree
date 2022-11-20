@@ -527,9 +527,9 @@ static void splitParallelAndReductionTiles(
     linalg::LinalgOp op, SmallVectorImpl<int64_t> &parallelSizes,
     SmallVectorImpl<int64_t> &reductionSizes) {
   reductionSizes.assign(parallelSizes.begin(), parallelSizes.end());
-  for (auto [index, iteratorTypeName] :
-       llvm::enumerate(op.getIteratorTypeNames())) {
-    if (iteratorTypeName == getParallelIteratorTypeName()) {
+  for (auto [index, iteratorType] :
+       llvm::enumerate(op.getIteratorTypesArray())) {
+    if (iteratorType == utils::IteratorType::parallel) {
       reductionSizes[index] = 0;
     } else {
       parallelSizes[index] = 0;
@@ -542,10 +542,10 @@ static void setAlwaysVectorizeSizes(linalg::LinalgOp op,
                                     SmallVectorImpl<int64_t> &reductionSizes) {
   SmallVector<int64_t, 4> staticLoopRanges = op.getStaticLoopRanges();
   for (auto [index, valuePair] : llvm::enumerate(
-           llvm::zip(staticLoopRanges, op.getIteratorTypeNames()))) {
+           llvm::zip(staticLoopRanges, op.getIteratorTypesArray()))) {
     auto [size, iterType] = valuePair;
     if (!ShapedType::isDynamic(size)) continue;
-    if (iterType == getParallelIteratorTypeName()) {
+    if (iterType == utils::IteratorType::parallel) {
       parallelSizes[index] = 1;
     } else {
       reductionSizes[index] = 1;
@@ -1059,8 +1059,10 @@ static LogicalResult setRootConfig(func::FuncOp entryPointFn,
 
 /// Sets the lowering configuration for dispatch region for linalg_ext.fft
 /// root op.
-static LogicalResult setRootConfig(func::FuncOp entryPointFn,
-                                   IREE::LinalgExt::FftOp fftOp) {
+static LogicalResult setRootConfig(
+    func::FuncOp entryPointFn, IREE::LinalgExt::FftOp fftOp,
+    DispatchLoweringPassPipeline pipeline =
+        DispatchLoweringPassPipeline::CPUDefault) {
   SmallVector<int64_t> workgroupTileSizes =
       getLinalgExtDefaultWorkgroupTileSizes(fftOp);
   auto rank = fftOp.getOperandRank();
@@ -1076,8 +1078,8 @@ static LogicalResult setRootConfig(func::FuncOp entryPointFn,
     }
   }
   TileSizesListType tileSizes = {workgroupTileSizes};
-  return setOpConfigAndEntryPointFnTranslation(
-      entryPointFn, fftOp, tileSizes, DispatchLoweringPassPipeline::CPUDefault);
+  return setOpConfigAndEntryPointFnTranslation(entryPointFn, fftOp, tileSizes,
+                                               pipeline);
 }
 
 static void setX86WorkgroupTileSizes(
@@ -1187,6 +1189,52 @@ static LogicalResult setDefaultGenericOpRootConfig(
 
   return setOpConfigAndEntryPointFnTranslation(entryPointFn, genericOp,
                                                tileSizes, passPipeline);
+}
+
+/// Set lowering info to be used by the transform dialect jitter.
+static LogicalResult setTransformStrategyRootConfig(
+    func::FuncOp entryPointFn, linalg::GenericOp genericOp,
+    const LinalgOpInfo &linalgOpInfo,
+    const TargetMLTransformInfo &targetMLTransInfo) {
+  if (!clCPUEnableTransformDialectJit) return success();
+  if (getLoweringConfig(genericOp)) {
+    return success();
+  }
+  // TODO: match the sequence the startegy supports.
+  if (genericOp.hasDynamicShape()) return success();
+  SmallVector<unsigned> reductionDims;
+  genericOp.getReductionDims(reductionDims);
+  if (reductionDims.size() != 1 ||
+      reductionDims[0] != genericOp.getNumLoops() - 1)
+    return success();
+  if (genericOp.getRegionOutputArgs().size() != 1) return success();
+
+  // Only support projected permutation, this could be extended to projected
+  // permutated with broadcast.
+  if (llvm::any_of(genericOp.getDpsInputOperands(), [&](OpOperand *input) {
+        return !genericOp.getMatchingIndexingMap(input)
+                    .isProjectedPermutation();
+      }))
+    return success();
+
+  // TODO: set the right config as expected by the strategy.
+  std::array<int64_t, 1> workgroupSize = {1};
+  SmallVector<unsigned> partitionedLoops =
+      cast<PartitionableLoopsInterface>(genericOp.getOperation())
+          .getPartitionableLoops(kNumMaxParallelDims);
+  size_t numLoops = partitionedLoops.empty() ? 0 : partitionedLoops.back() + 1;
+  // Tile all the parallel dimension to 1.
+  SmallVector<int64_t, 4> workgroupTileSizes(numLoops, 1);
+  SmallVector<int64_t, 4> threadTileSizes = workgroupTileSizes;
+  threadTileSizes.push_back(1);
+  TileSizesListType tileSizes;
+  tileSizes.emplace_back(std::move(workgroupTileSizes));  // Workgroup level
+  tileSizes.emplace_back(std::move(threadTileSizes));     // Thread level
+  return setOpConfigAndEntryPointFnTranslation(
+      entryPointFn, genericOp, tileSizes,
+      IREE::Codegen::DispatchLoweringPassPipeline::
+          TransformDialectJitterCodegen,
+      workgroupSize);
 }
 
 /// Sets the lowering configuration for a generic op implementing a
@@ -1345,7 +1393,9 @@ static LogicalResult setRootConfig(
     func::FuncOp entryPointFn, linalg::GenericOp genericOp,
     const LinalgOpInfo &linalgOpInfo,
     const TargetMLTransformInfo &targetMLTransInfo) {
-  if (failed(setTransposeLikeOpRootConfig(entryPointFn, genericOp, linalgOpInfo,
+  if (failed(setTransformStrategyRootConfig(entryPointFn, genericOp,
+                                            linalgOpInfo, targetMLTransInfo)) ||
+      failed(setTransposeLikeOpRootConfig(entryPointFn, genericOp, linalgOpInfo,
                                           targetMLTransInfo)) ||
       failed(setElementwiseGenericOpRootConfig(
           entryPointFn, genericOp, linalgOpInfo, targetMLTransInfo)) ||
@@ -1576,6 +1626,10 @@ static LogicalResult setVMVXRootConfigImpl(func::FuncOp entryPointFn,
   // Redirect to individual operations.
   auto setRootConfigFn = [&](Operation *op) -> LogicalResult {
     return TypeSwitch<Operation *, LogicalResult>(op)
+        .Case<IREE::LinalgExt::FftOp>([&](auto op) {
+          return setRootConfig(entryPointFn, op,
+                               DispatchLoweringPassPipeline::VMVXDefault);
+        })
         .Case<linalg::LinalgOp>([&](auto op) {
           return setRootConfig(entryPointFn, op,
                                DispatchLoweringPassPipeline::VMVXDefault);

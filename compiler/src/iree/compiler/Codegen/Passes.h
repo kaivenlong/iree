@@ -81,6 +81,10 @@ std::unique_ptr<OperationPass<>> createFoldTensorExtractOpPass();
 /// scf.for.
 std::unique_ptr<OperationPass<func::FuncOp>> createForOpCanonicalizationPass();
 
+/// A pass to eliminate tensor.empty ops that could turn into allocations
+/// during bufferization.
+std::unique_ptr<OperationPass<ModuleOp>> createEliminateEmptyTensorsPass();
+
 /// Pass to perform linalg on tensor bufferization. The function passed into
 /// the pass through the `allocationFn` argument is invoked whenever a new
 /// buffer is to be created. The callback will be passed the Values for the
@@ -112,6 +116,13 @@ std::unique_ptr<OperationPass<func::FuncOp>> createVectorizePadPass();
 std::unique_ptr<OperationPass<func::FuncOp>> createOptimizeVectorTransferPass(
     bool flatten = false);
 
+/// Pass to optimize vector transfer_read and transfer_write. See Passes.td for
+/// `option` details.
+std::unique_ptr<OperationPass<func::FuncOp>>
+createSplitFullPartialTransferPass();
+std::unique_ptr<OperationPass<func::FuncOp>> createSplitFullPartialTransferPass(
+    StringRef option);
+
 /// Pass to test Partitionable loop interface
 std::unique_ptr<OperationPass<void>>
 createTestPartitionableLoopsInterfacePass();
@@ -137,6 +148,10 @@ std::unique_ptr<OperationPass<func::FuncOp>> createMemrefCopyToLinalgPass();
 /// transfer_read/transfer_write.
 std::unique_ptr<OperationPass<func::FuncOp>>
 createGPUDistributeSharedMemoryCopy();
+
+/// Apply multi-buffering transformation.
+std::unique_ptr<OperationPass<func::FuncOp>> createGPUMultiBuffering(
+    unsigned numBuffers = 5);
 
 /// Apply software pipelining.
 std::unique_ptr<OperationPass<func::FuncOp>> createGPUPipeliningPass(
@@ -178,6 +193,11 @@ createFuseTensorPadWithConsumerPass();
 /// OffsetSizeAndStrideOpInterface. For example, pad(extract_slice).
 std::unique_ptr<OperationPass<func::FuncOp>>
 createConcretizePadResultShapePass();
+
+/// Materialize the encoding of operations. The layout to use for the encoded
+/// operations are backend specific.
+std::unique_ptr<OperationPass<func::FuncOp>>
+createIREEMaterializeEncodingPass();
 
 //----------------------------------------------------------------------------//
 // Common codegen patterns.
@@ -428,10 +448,6 @@ createLLVMGPUTensorCoreVectorizationPass();
 /// Lower vector ops before convertion to LLVM.
 std::unique_ptr<OperationPass<func::FuncOp>> createLLVMGPUVectorLoweringPass();
 
-/// Apply multi-buffering transformation.
-std::unique_ptr<OperationPass<func::FuncOp>> createLLVMGPUMultiBuffering(
-    unsigned numBuffers = 5);
-
 /// Apply transformation to reduce the number of bank conflicts when accessing
 /// shared memory by padding fastest moving dimension with the specified size.
 std::unique_ptr<OperationPass<func::FuncOp>>
@@ -454,6 +470,10 @@ void addSPIRVBaseDistributePassPipeline(OpPassManager &pm);
 /// Pass pipeline to lower IREE HAL executables by tiling and distributing to
 /// workgroups and invocations and vectorizing. Each invocation handles a
 /// vector.
+LogicalResult verifySPIRVBaseVectorizePassPipeline(
+    Operation *op, IREE::Codegen::LoweringConfigAttr loweringConfig,
+    IREE::Codegen::TranslationInfoAttr translationInfo,
+    ArrayRef<int64_t> workgroupSize);
 void addSPIRVBaseVectorizePassPipeline(OpPassManager &pm);
 
 /// Pass pipeline to lower IREE HAL executables by tiling and distributing
@@ -465,7 +485,12 @@ void addSPIRVCooperativeMatrixVectorizePassPipeline(OpPassManager &pm);
 /// workgroups, promoting to use workgroup memory, and then tiling and
 /// distributing to invocations and vectorizing. Each invocation handles a
 /// vector.
-void addSPIRVMatmulPromoteVectorizePassPipeline(OpPassManager &pm);
+LogicalResult verifySPIRVMatmulPromoteVectorizePassPipeline(
+    Operation *op, IREE::Codegen::LoweringConfigAttr loweringConfig,
+    IREE::Codegen::TranslationInfoAttr translationInfo,
+    ArrayRef<int64_t> workgroupSize);
+void addSPIRVMatmulPromoteVectorizePassPipeline(OpPassManager &pm,
+                                                unsigned pipelineDepth);
 
 /// Pass pipeline to lower IREE HAL executables by tiling and distributing
 /// reduction to workgroups and then subgroups.
@@ -520,6 +545,10 @@ std::unique_ptr<OperationPass<func::FuncOp>> createSPIRVVectorizePass();
 /// allow to convert memory accesses to vector load/store in SPIR-V without
 /// having pointer bitcast.
 std::unique_ptr<OperationPass<ModuleOp>> createSPIRVVectorizeLoadStore();
+
+/// Breaks down large vectors not natively supported by SPIR-V.
+std::unique_ptr<OperationPass<func::FuncOp>>
+createSPIRVBreakDownLargeVectorPass();
 
 // Uses `tensor.pad` ops as anchors to create separate fast and slow paths
 // inside the kernel. The fast path is for inner tiles where we don't need
